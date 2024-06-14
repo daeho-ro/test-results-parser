@@ -3,6 +3,7 @@ use pyo3::prelude::*;
 use quick_xml::events::attributes::Attributes;
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
+use std::ascii;
 use std::collections::HashMap;
 
 use crate::helpers::ParserError;
@@ -24,10 +25,11 @@ fn attributes_map(attributes: Attributes) -> Result<HashMap<String, String>, pyo
 
 fn populate(attr_hm: &HashMap<String, String>, testsuite: String) -> Result<Testrun, pyo3::PyErr> {
     let name = format!(
-        "{}::{}",
+        "{}{}{}",
         attr_hm
             .get("classname")
             .ok_or(ParserError::new_err("No classname found"))?,
+        '\x1f',
         attr_hm
             .get("name")
             .ok_or(ParserError::new_err("No name found"))?
