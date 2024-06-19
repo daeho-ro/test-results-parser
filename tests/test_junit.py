@@ -1,5 +1,5 @@
 import pytest
-from test_results_parser import parse_junit_xml, Testrun, Outcome
+from test_results_parser import Outcome, Testrun, parse_junit_xml
 
 
 class TestParsers:
@@ -10,7 +10,7 @@ class TestParsers:
                 "./tests/junit.xml",
                 [
                     Testrun(
-                        "tests.test_parsers.TestParsers::test_junit[junit.xml--True]",
+                        "tests.test_parsers.TestParsers\x1ftest_junit[junit.xml--True]",
                         0.001,
                         Outcome.Failure,
                         "pytest",
@@ -32,7 +32,7 @@ E               AssertionError: assert [{'duration': '0.010', 'name': 'tests.tes
 tests/test_parsers.py:16: AssertionError""",
                     ),
                     Testrun(
-                        "tests.test_parsers.TestParsers::test_junit[jest-junit.xml--False]",
+                        "tests.test_parsers.TestParsers\x1ftest_junit[jest-junit.xml--False]",
                         0.064,
                         Outcome.Pass,
                         "pytest",
@@ -44,28 +44,28 @@ tests/test_parsers.py:16: AssertionError""",
                 "./tests/jest-junit.xml",
                 [
                     Testrun(
-                        "Title when rendered renders pull title::Title when rendered renders pull title",
+                        "Title when rendered renders pull title\x1fTitle when rendered renders pull title",
                         0.036,
                         Outcome.Pass,
                         "Title",
                         None,
                     ),
                     Testrun(
-                        "Title when rendered renders pull author::Title when rendered renders pull author",
+                        "Title when rendered renders pull author\x1fTitle when rendered renders pull author",
                         0.005,
                         Outcome.Pass,
                         "Title",
                         None,
                     ),
                     Testrun(
-                        "Title when rendered renders pull updatestamp::Title when rendered renders pull updatestamp",
+                        "Title when rendered renders pull updatestamp\x1fTitle when rendered renders pull updatestamp",
                         0.002,
                         Outcome.Pass,
                         "Title",
                         None,
                     ),
                     Testrun(
-                        "Title when rendered for first pull request renders pull title::Title when rendered for first pull request renders pull title",
+                        "Title when rendered for first pull request renders pull title\x1fTitle when rendered for first pull request renders pull title",
                         0.006,
                         Outcome.Pass,
                         "Title",
@@ -77,7 +77,7 @@ tests/test_parsers.py:16: AssertionError""",
                 "./tests/vitest-junit.xml",
                 [
                     Testrun(
-                        "__tests__/test-file-1.test.ts::first test file &gt; 2 + 2 should equal 4",
+                        "__tests__/test-file-1.test.ts\x1ffirst test file &gt; 2 + 2 should equal 4",
                         0.01,
                         Outcome.Failure,
                         "__tests__/test-file-1.test.ts",
@@ -85,7 +85,7 @@ tests/test_parsers.py:16: AssertionError""",
  ❯ __tests__/test-file-1.test.ts:20:28""",
                     ),
                     Testrun(
-                        "__tests__/test-file-1.test.ts::first test file &gt; 4 - 2 should equal 2",
+                        "__tests__/test-file-1.test.ts\x1ffirst test file &gt; 4 - 2 should equal 2",
                         0,
                         Outcome.Pass,
                         "__tests__/test-file-1.test.ts",
@@ -97,20 +97,20 @@ tests/test_parsers.py:16: AssertionError""",
                 "./tests/empty_failure.junit.xml",
                 [
                     Testrun(
-                        "test.test::test.test works",
+                        "test.test\x1ftest.test works",
                         0.234,
                         Outcome.Pass,
                         "test",
-                        None
+                        None,
                     ),
-                    Testrun(    
-                        "test.test::test.test fails",
+                    Testrun(
+                        "test.test\x1ftest.test fails",
                         1,
                         Outcome.Failure,
                         "test",
-                        "TestError"
+                        "TestError",
                     ),
-                ]
+                ],
             ),
         ],
     )
@@ -120,4 +120,3 @@ tests/test_parsers.py:16: AssertionError""",
             assert len(res) == len(expected)
             for restest, extest in zip(res, expected):
                 assert restest == extest
-

@@ -11,23 +11,22 @@ use crate::testrun::{Outcome, Testrun};
 // from https://gist.github.com/scott-codecov/311c174ecc7de87f7d7c50371c6ef927#file-cobertura-rs-L18-L31
 fn attributes_map(attributes: Attributes) -> Result<HashMap<String, String>, pyo3::PyErr> {
     let mut attr_map = HashMap::new();
-    for attribute in attributes {
-        if let Ok(attr) = attribute {
-            let bytes = attr.value.into_owned();
-            let value = String::from_utf8(bytes)?;
-            let key = String::from_utf8(attr.key.into_inner().to_vec())?;
-            attr_map.insert(key, value);
-        }
+    for attribute in attributes.flatten() {
+        let bytes = attribute.value.into_owned();
+        let value = String::from_utf8(bytes)?;
+        let key = String::from_utf8(attribute.key.into_inner().to_vec())?;
+        attr_map.insert(key, value);
     }
     Ok(attr_map)
 }
 
 fn populate(attr_hm: &HashMap<String, String>, testsuite: String) -> Result<Testrun, pyo3::PyErr> {
     let name = format!(
-        "{}::{}",
+        "{}{}{}",
         attr_hm
             .get("classname")
             .ok_or(ParserError::new_err("No classname found"))?,
+        '\x1f',
         attr_hm
             .get("name")
             .ok_or(ParserError::new_err("No name found"))?
@@ -107,7 +106,7 @@ pub fn parse_junit_xml(file_bytes: Vec<u8>) -> PyResult<Vec<Testrun>> {
 
                     curr_testsuite = attr_hm?
                         .get("name")
-                        .ok_or(ParserError::new_err(format!("Error getting name",)))?
+                        .ok_or(ParserError::new_err("Error getting name".to_string()))?
                         .to_string();
                 }
                 _ => {}
@@ -123,15 +122,14 @@ pub fn parse_junit_xml(file_bytes: Vec<u8>) -> PyResult<Vec<Testrun>> {
                 b"failure" => in_failure = false,
                 _ => (),
             },
-            Ok(Event::Empty(e)) => match e.name().as_ref() {
-                b"testcase" => {
+            Ok(Event::Empty(e)) => {
+                if e.name().as_ref() == b"testcase" {
                     let attr_hm = attributes_map(e.attributes());
                     list_of_test_runs.push(populate(&attr_hm?, curr_testsuite.clone())?);
                 }
-                _ => (),
-            },
+            }
             Ok(Event::Text(x)) => {
-                if in_failure == true {
+                if in_failure {
                     let mut testrun = saved_testrun
                         .ok_or(ParserError::new_err("Error accessing saved testrun"))?;
 
