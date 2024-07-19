@@ -37,7 +37,7 @@ pub fn parse_vitest_json(file_bytes: Vec<u8>) -> PyResult<Vec<Testrun>> {
     let file_string = String::from_utf8_lossy(&file_bytes).into_owned();
 
     let val: VitestReport = serde_json::from_str(file_string.as_str()).map_err(|err| {
-        ParserError::new_err(format!("Error parsing vitest JSON: {}", err.to_string()))
+        ParserError::new_err(format!("Error parsing vitest JSON: {}", err))
     })?;
 
     let testruns: Result<Vec<Testrun>, _> = val
@@ -73,5 +73,5 @@ pub fn parse_vitest_json(file_bytes: Vec<u8>) -> PyResult<Vec<Testrun>> {
         })
         .collect();
 
-    Ok(testruns?)
+    testruns
 }

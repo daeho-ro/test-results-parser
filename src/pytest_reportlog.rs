@@ -95,11 +95,7 @@ pub fn parse_pytest_reportlog(file_bytes: Vec<u8>) -> PyResult<Vec<Testrun>> {
     let mut saved_failure_message: Option<String> = None;
     let mut saved_outcome: Option<Outcome> = None;
 
-    let mut lineno = 0;
-
-    let string_lines = file_string.lines();
-
-    for line in string_lines {
+    for (lineno, line) in file_string.lines().enumerate() {
         let val: PytestLine = serde_json::from_str(line)
             .map_err(|err| ParserError::new_err(format!("Error parsing json line  {}", err)))?;
 
@@ -178,7 +174,6 @@ pub fn parse_pytest_reportlog(file_bytes: Vec<u8>) -> PyResult<Vec<Testrun>> {
                 _ => (),
             }
         }
-        lineno += 1;
     }
 
     Ok(testruns)

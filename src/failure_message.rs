@@ -53,7 +53,7 @@ pub fn shorten_file_paths(failure_message: String) -> String {
     let mut resulting_string = failure_message.clone();
     for m in SHORTEN_PATH_PATTERN.find_iter(&failure_message) {
         let filepath = m.as_str();
-        let split_file_path: Vec<_> = filepath.split("/").collect();
+        let split_file_path: Vec<_> = filepath.split('/').collect();
 
         if split_file_path.len() > 3 {
             let mut slice = split_file_path.iter().rev().take(3).rev();
@@ -99,7 +99,7 @@ pub struct MessagePayload {
 }
 
 #[pyfunction]
-pub fn build_message<'py>(py: Python<'py>, payload: MessagePayload) -> PyResult<&'py PyString> {
+pub fn build_message(py: Python<'_>, payload: MessagePayload) -> PyResult<&PyString> {
     let mut message: Vec<String> = Vec::new();
     let header = s("### :x: Failed Test Results: ");
     message.push(header);
@@ -136,5 +136,5 @@ pub fn build_message<'py>(py: Python<'py>, payload: MessagePayload) -> PyResult<
         message.push(single_test_row);
     }
 
-    Ok(&PyString::new(py, &message.join("\n")))
+    Ok(PyString::new(py, &message.join("\n")))
 }
