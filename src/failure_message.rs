@@ -1,8 +1,6 @@
-use lazy_static::lazy_static;
+use std::sync::OnceLock;
 
 use pyo3::{prelude::*, types::PyString};
-
-use itertools::Itertools;
 use regex::Regex;
 
 use crate::helpers::s;
@@ -25,40 +23,43 @@ pub fn escape_failure_message(failure_message: &str) -> String {
     e
 }
 
-/*
-Examples of strings that match:
-
-/path/to/file.txt
-/path/to/file
-/path/to
-path/to:1:2
-/path/to/file.txt:1:2
-
-Examples of strings that don't match:
-
-path
-file.txt
-*/
-lazy_static! {
-    static ref SHORTEN_PATH_PATTERN: Regex =
-        Regex::new(r"(?:\/*[\w\-]+\/)+(?:[\w\.]+)(?::\d+:\d+)*").unwrap();
-}
-
 #[pyfunction]
-pub fn shorten_file_paths(failure_message: String) -> String {
-    let mut resulting_string = failure_message.clone();
-    for m in SHORTEN_PATH_PATTERN.find_iter(&failure_message) {
+pub fn shorten_file_paths(failure_message: &str) -> String {
+    static SHORTEN_PATH_PATTERN: OnceLock<Regex> = OnceLock::new();
+    /*
+    Examples of strings that match:
+
+    /path/to/file.txt
+    /path/to/file
+    /path/to
+    path/to:1:2
+    /path/to/file.txt:1:2
+
+    Examples of strings that don't match:
+
+    path
+    file.txt
+    */
+    let re = SHORTEN_PATH_PATTERN
+        .get_or_init(|| Regex::new(r"(?:\/*[\w\-]+\/)+(?:[\w\.]+)(?::\d+:\d+)*").unwrap());
+
+    let mut new = String::with_capacity(failure_message.len());
+    let mut last_match = 0;
+    for caps in re.captures_iter(failure_message) {
+        let m = caps.get(0).unwrap();
         let filepath = m.as_str();
-        let split_file_path: Vec<_> = filepath.split('/').collect();
 
-        if split_file_path.len() > 3 {
-            let mut slice = split_file_path.iter().rev().take(3).rev();
-
-            let s = format!("{}{}", ".../", slice.join("/"));
-            resulting_string = resulting_string.replace(filepath, &s);
+        if let Some((third_last_slash_idx, _)) = filepath.rmatch_indices('/').nth(3) {
+            new.push_str(".../");
+            new.push_str(&filepath[third_last_slash_idx..]);
+        } else {
+            new.push_str(&failure_message[last_match..m.end()]);
         }
+        last_match = m.end();
     }
-    resulting_string
+    new.push_str(&failure_message[last_match..]);
+
+    new
 }
 
 fn generate_test_description(testsuite: &String, name: &String) -> String {
@@ -71,12 +72,7 @@ fn generate_test_description(testsuite: &String, name: &String) -> String {
 fn generate_failure_info(failure_message: &Option<String>) -> String {
     match failure_message {
         None => s("No failure message available"),
-        Some(x) => {
-            let mut resulting_string = x.clone();
-            resulting_string = shorten_file_paths(resulting_string);
-            resulting_string = escape_failure_message(&resulting_string);
-            resulting_string
-        }
+        Some(x) => escape_failure_message(&shorten_file_paths(x)),
     }
 }
 
