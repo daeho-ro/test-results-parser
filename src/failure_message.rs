@@ -1,5 +1,4 @@
 use lazy_static::lazy_static;
-use phf::phf_ordered_map;
 
 use pyo3::{prelude::*, types::PyString};
 
@@ -8,25 +7,22 @@ use regex::Regex;
 
 use crate::helpers::s;
 
-// Need to use an ordered map to make sure we replace '>' before
-// we replace '\n', so that we don't replace the '>' in '<br>'
-static REPLACEMENTS: phf::OrderedMap<&'static str, &'static str> = phf_ordered_map! {
-    "\"" => "&quot;",
-    "'" => "&apos;",
-    "<" => "&lt;",
-    ">" => "&gt;",
-    "&" => "&amp;",
-    "\r" =>  "",
-    "\n" =>  "<br>",
-};
-
 #[pyfunction]
-pub fn escape_failure_message(failure_message: String) -> String {
-    let mut escaped_failure_message = failure_message.clone();
-    for (from, to) in REPLACEMENTS.entries() {
-        escaped_failure_message = escaped_failure_message.replace(from, to);
+pub fn escape_failure_message(failure_message: &str) -> String {
+    let mut e = String::new();
+    for c in failure_message.chars() {
+        match c {
+            '\"' => e.push_str("&quot;"),
+            '\'' => e.push_str("&apos;"),
+            '<' => e.push_str("&lt;"),
+            '>' => e.push_str("&gt;"),
+            '&' => e.push_str("&amp;"),
+            '\r' => {}
+            '\n' => e.push_str("<br>"),
+            c => e.push(c),
+        }
     }
-    escaped_failure_message
+    e
 }
 
 /*
@@ -78,7 +74,7 @@ fn generate_failure_info(failure_message: &Option<String>) -> String {
         Some(x) => {
             let mut resulting_string = x.clone();
             resulting_string = shorten_file_paths(resulting_string);
-            resulting_string = escape_failure_message(resulting_string);
+            resulting_string = escape_failure_message(&resulting_string);
             resulting_string
         }
     }

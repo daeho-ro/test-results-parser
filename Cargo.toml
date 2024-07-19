@@ -11,7 +11,6 @@ crate-type = ["cdylib"]
 [dependencies]
 itertools = "0.12.1"
 lazy_static = "1.4.0"
-phf = { version = "0.11.2", features = ["macros"] }
 pyo3 = "0.20.1"
 quick-xml = "0.31.0"
 regex = "1.10.4"
