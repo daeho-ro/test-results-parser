@@ -1,16 +1,18 @@
+use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 
 mod failure_message;
-mod helpers;
 mod junit;
 mod pytest_reportlog;
 mod testrun;
 mod vitest_json;
 
+pyo3::create_exception!(test_results_parser, ParserError, PyException);
+
 /// A Python module implemented in Rust.
 #[pymodule]
 fn test_results_parser(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add("ParserError", _py.get_type::<helpers::ParserError>())?;
+    m.add("ParserError", _py.get_type::<ParserError>())?;
     m.add_class::<testrun::Testrun>()?;
     m.add_class::<testrun::Outcome>()?;
 

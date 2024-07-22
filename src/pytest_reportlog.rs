@@ -1,8 +1,8 @@
 use pyo3::prelude::*;
 
 use crate::{
-    helpers::{s, ParserError},
     testrun::{Outcome, Testrun},
+    ParserError,
 };
 
 use serde::{Deserialize, Serialize};
@@ -50,6 +50,7 @@ struct ReprCrash {
 struct LongRepr {
     reprcrash: ReprCrash,
 }
+
 #[derive(Serialize, Deserialize, Debug)]
 struct PytestLine {
     /// report_type denotes the type of object in the pytest reportlog
@@ -86,10 +87,10 @@ struct PytestLine {
 }
 
 #[pyfunction]
-pub fn parse_pytest_reportlog(file_bytes: Vec<u8>) -> PyResult<Vec<Testrun>> {
+pub fn parse_pytest_reportlog(file_bytes: &[u8]) -> PyResult<Vec<Testrun>> {
     let mut testruns: Vec<Testrun> = Vec::new();
 
-    let file_string = String::from_utf8_lossy(&file_bytes).into_owned();
+    let file_string = String::from_utf8_lossy(file_bytes);
 
     let mut saved_start_time: Option<f64> = None;
     let mut saved_failure_message: Option<String> = None;
@@ -155,10 +156,11 @@ pub fn parse_pytest_reportlog(file_bytes: Vec<u8>) -> PyResult<Vec<Testrun>> {
                     saved_outcome = None;
                 }
                 WhenEnum::Call => {
-                    saved_failure_message = Some(match val.longrepr {
-                        Some(longrepr) => longrepr.reprcrash.message,
-                        None => s(""),
-                    });
+                    saved_failure_message = Some(
+                        val.longrepr
+                            .map(|longrepr| longrepr.reprcrash.message)
+                            .unwrap_or_default(),
+                    );
 
                     saved_outcome = Some(
                         match val.outcome.ok_or(ParserError::new_err(format!(

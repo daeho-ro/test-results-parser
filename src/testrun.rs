@@ -3,8 +3,6 @@ use std::fmt::Display;
 use pyo3::class::basic::CompareOp;
 use pyo3::{prelude::*, pyclass};
 
-use crate::helpers::s;
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[pyclass]
 pub enum Outcome {
@@ -17,9 +15,8 @@ pub enum Outcome {
 #[pymethods]
 impl Outcome {
     #[new]
-    fn new(value: String) -> Self {
-        let val = value.as_str();
-        match val {
+    fn new(value: &str) -> Self {
+        match value {
             "pass" => Outcome::Pass,
             "failure" => Outcome::Failure,
             "error" => Outcome::Error,
@@ -28,12 +25,12 @@ impl Outcome {
         }
     }
 
-    fn __str__(&self) -> String {
+    fn __str__(&self) -> &str {
         match &self {
-            Outcome::Pass => s("pass"),
-            Outcome::Failure => s("failure"),
-            Outcome::Error => s("error"),
-            Outcome::Skip => s("skip"),
+            Outcome::Pass => "pass",
+            Outcome::Failure => "failure",
+            Outcome::Error => "error",
+            Outcome::Skip => "skip",
         }
     }
 }
@@ -67,10 +64,10 @@ pub struct Testrun {
 impl Testrun {
     pub fn empty() -> Testrun {
         Testrun {
-            name: s(""),
+            name: "".into(),
             duration: 0.0,
             outcome: Outcome::Pass,
-            testsuite: s(""),
+            testsuite: "".into(),
             failure_message: None,
         }
     }

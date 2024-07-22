@@ -2,8 +2,8 @@ use pyo3::prelude::*;
 
 use serde::{Deserialize, Serialize};
 
-use crate::helpers::ParserError;
 use crate::testrun::{Outcome, Testrun};
+use crate::ParserError;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct AssertionResult {
@@ -36,9 +36,8 @@ struct VitestReport {
 pub fn parse_vitest_json(file_bytes: Vec<u8>) -> PyResult<Vec<Testrun>> {
     let file_string = String::from_utf8_lossy(&file_bytes).into_owned();
 
-    let val: VitestReport = serde_json::from_str(file_string.as_str()).map_err(|err| {
-        ParserError::new_err(format!("Error parsing vitest JSON: {}", err))
-    })?;
+    let val: VitestReport = serde_json::from_str(file_string.as_str())
+        .map_err(|err| ParserError::new_err(format!("Error parsing vitest JSON: {}", err)))?;
 
     let testruns: Result<Vec<Testrun>, _> = val
         .test_results
