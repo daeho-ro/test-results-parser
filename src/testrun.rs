@@ -4,7 +4,7 @@ use pyo3::class::basic::CompareOp;
 use pyo3::{prelude::*, pyclass};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[pyclass]
+#[pyclass(eq, eq_int)]
 pub enum Outcome {
     Pass,
     Error,
@@ -76,6 +76,7 @@ impl Testrun {
 #[pymethods]
 impl Testrun {
     #[new]
+    #[pyo3(signature = (name, duration, outcome, testsuite, failure_message=None))]
     fn new(
         name: String,
         duration: f64,

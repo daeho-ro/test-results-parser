@@ -11,8 +11,8 @@ pyo3::create_exception!(test_results_parser, ParserError, PyException);
 
 /// A Python module implemented in Rust.
 #[pymodule]
-fn test_results_parser(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add("ParserError", _py.get_type::<ParserError>())?;
+fn test_results_parser(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
+    m.add("ParserError", py.get_type_bound::<ParserError>())?;
     m.add_class::<testrun::Testrun>()?;
     m.add_class::<testrun::Outcome>()?;
 
