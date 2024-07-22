@@ -1,9 +1,7 @@
 use std::sync::OnceLock;
 
-use pyo3::{prelude::*, types::PyString};
+use pyo3::prelude::*;
 use regex::Regex;
-
-use crate::helpers::s;
 
 #[pyfunction]
 pub fn escape_failure_message(failure_message: &str) -> String {
@@ -62,20 +60,6 @@ pub fn shorten_file_paths(failure_message: &str) -> String {
     new
 }
 
-fn generate_test_description(testsuite: &String, name: &String) -> String {
-    format!(
-        "Testsuite:<br>{}<br><br>Test name:<br>{}<br>",
-        testsuite, name
-    )
-}
-
-fn generate_failure_info(failure_message: &Option<String>) -> String {
-    match failure_message {
-        None => s("No failure message available"),
-        Some(x) => escape_failure_message(&shorten_file_paths(x)),
-    }
-}
-
 #[derive(FromPyObject, Debug)]
 pub struct Failure {
     name: String,
@@ -91,42 +75,36 @@ pub struct MessagePayload {
 }
 
 #[pyfunction]
-pub fn build_message(py: Python<'_>, payload: MessagePayload) -> PyResult<&PyString> {
-    let mut message: Vec<String> = Vec::new();
-    let header = s("### :x: Failed Test Results: ");
-    message.push(header);
+pub fn build_message(payload: MessagePayload) -> String {
+    use std::fmt::Write;
+    let mut message = String::from("### :x: Failed Test Results:\n");
 
     let failed: i32 = payload.failed;
     let passed: i32 = payload.passed;
     let skipped: i32 = payload.skipped;
 
     let completed = failed + passed + skipped;
-    let results_summary = format!(
-        "Completed {} tests with **`{} failed`**, {} passed and {} skipped.",
-        completed, failed, passed, skipped
-    );
-    message.push(results_summary);
-    let details_beginning = [
-        s("<details><summary>View the full list of failed tests</summary>"),
-        s(""),
-        s("| **Test Description** | **Failure message** |"),
-        s("| :-- | :-- |"),
-    ];
-    message.append(&mut details_beginning.to_vec());
+    writeln!(&mut message, "Completed {completed} tests with **`{failed} failed`**, {passed} passed and {skipped} skipped.").unwrap();
+    message.push_str("<details><summary>View the full list of failed tests</summary>\n\n");
+    message.push_str("| **Test Description** | **Failure message** |\n");
+    message.push_str("| :-- | :-- |\n");
 
-    let failures = payload.failures;
-    for fail in failures {
-        let name = &fail.name;
-        let testsuite = &fail.testsuite;
-        let failure_message = &fail.failure_message;
-        let test_description = generate_test_description(name, testsuite);
-        let failure_information = generate_failure_info(failure_message);
-        let single_test_row = format!(
-            "| <pre>{}</pre> | <pre>{}</pre> |",
-            test_description, failure_information
-        );
-        message.push(single_test_row);
+    for fail in payload.failures {
+        message.push_str("| <pre>");
+        write!(
+            &mut message,
+            "Testsuite:<br>{}<br><br>Test name:<br>{}<br>",
+            fail.testsuite, fail.name
+        )
+        .unwrap();
+        message.push_str("</pre> | <pre>");
+
+        match fail.failure_message {
+            None => message.push_str("No failure message available"),
+            Some(x) => message.push_str(&escape_failure_message(&shorten_file_paths(&x))),
+        }
+        message.push_str("</pre> |\n");
     }
 
-    Ok(PyString::new(py, &message.join("\n")))
+    message
 }
