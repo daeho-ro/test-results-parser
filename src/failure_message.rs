@@ -47,8 +47,10 @@ pub fn shorten_file_paths(failure_message: &str) -> String {
         let m = caps.get(0).unwrap();
         let filepath = m.as_str();
 
-        if let Some((third_last_slash_idx, _)) = filepath.rmatch_indices('/').nth(3) {
-            new.push_str(".../");
+        // we are looking for the 3rd slash (0-indexed) from the back
+        if let Some((third_last_slash_idx, _)) = filepath.rmatch_indices('/').nth(2) {
+            new.push_str(&failure_message[last_match..m.start()]);
+            new.push_str("...");
             new.push_str(&filepath[third_last_slash_idx..]);
         } else {
             new.push_str(&failure_message[last_match..m.end()]);
@@ -89,7 +91,10 @@ pub fn build_message(payload: MessagePayload) -> String {
     message.push_str("| **Test Description** | **Failure message** |\n");
     message.push_str("| :-- | :-- |\n");
 
-    for fail in payload.failures {
+    for (idx, fail) in payload.failures.into_iter().enumerate() {
+        if idx != 0 {
+            message.push('\n');
+        }
         message.push_str("| <pre>");
         write!(
             &mut message,
@@ -103,7 +108,7 @@ pub fn build_message(payload: MessagePayload) -> String {
             None => message.push_str("No failure message available"),
             Some(x) => message.push_str(&escape_failure_message(&shorten_file_paths(&x))),
         }
-        message.push_str("</pre> |\n");
+        message.push_str("</pre> |");
     }
 
     message
