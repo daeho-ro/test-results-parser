@@ -30,7 +30,7 @@ jobs:
         run: |
           . venv/bin/activate
           python -m pytest --cov-report=xml:coverage.xml --cov=. --junitxml=unit.junit.xml
-      
+
       - name: Upload results to codecov
         if: ${{ !cancelled() }}
         uses: codecov/test-results-action@v1
@@ -39,7 +39,6 @@ jobs:
           url: ${{ secrets.CODECOV_URL }}
           file: unit.junit.xml
           disable_search: true
-
 
       - name: Upload results to codecov
         if: ${{ !cancelled() }}

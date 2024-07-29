@@ -1,8 +1,8 @@
 use pyo3::prelude::*;
 
 use crate::{
-    helpers::{s, ParserError},
     testrun::{Outcome, Testrun},
+    ParserError,
 };
 
 use serde::{Deserialize, Serialize};
@@ -50,6 +50,7 @@ struct ReprCrash {
 struct LongRepr {
     reprcrash: ReprCrash,
 }
+
 #[derive(Serialize, Deserialize, Debug)]
 struct PytestLine {
     /// report_type denotes the type of object in the pytest reportlog
@@ -86,20 +87,16 @@ struct PytestLine {
 }
 
 #[pyfunction]
-pub fn parse_pytest_reportlog(file_bytes: Vec<u8>) -> PyResult<Vec<Testrun>> {
+pub fn parse_pytest_reportlog(file_bytes: &[u8]) -> PyResult<Vec<Testrun>> {
     let mut testruns: Vec<Testrun> = Vec::new();
 
-    let file_string = String::from_utf8_lossy(&file_bytes).into_owned();
+    let file_string = String::from_utf8_lossy(file_bytes);
 
     let mut saved_start_time: Option<f64> = None;
     let mut saved_failure_message: Option<String> = None;
     let mut saved_outcome: Option<Outcome> = None;
 
-    let mut lineno = 0;
-
-    let string_lines = file_string.lines();
-
-    for line in string_lines {
+    for (lineno, line) in file_string.lines().enumerate() {
         let val: PytestLine = serde_json::from_str(line)
             .map_err(|err| ParserError::new_err(format!("Error parsing json line  {}", err)))?;
 
@@ -159,10 +156,11 @@ pub fn parse_pytest_reportlog(file_bytes: Vec<u8>) -> PyResult<Vec<Testrun>> {
                     saved_outcome = None;
                 }
                 WhenEnum::Call => {
-                    saved_failure_message = Some(match val.longrepr {
-                        Some(longrepr) => longrepr.reprcrash.message,
-                        None => s(""),
-                    });
+                    saved_failure_message = Some(
+                        val.longrepr
+                            .map(|longrepr| longrepr.reprcrash.message)
+                            .unwrap_or_default(),
+                    );
 
                     saved_outcome = Some(
                         match val.outcome.ok_or(ParserError::new_err(format!(
@@ -178,7 +176,6 @@ pub fn parse_pytest_reportlog(file_bytes: Vec<u8>) -> PyResult<Vec<Testrun>> {
                 _ => (),
             }
         }
-        lineno += 1;
     }
 
     Ok(testruns)
