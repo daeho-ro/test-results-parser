@@ -3,7 +3,6 @@ use pyo3::prelude::*;
 use quick_xml::events::attributes::Attributes;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::reader::Reader;
-use std::collections::HashMap;
 
 use crate::testrun::{Outcome, Testrun};
 use crate::ParserError;
