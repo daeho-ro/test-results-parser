@@ -8,18 +8,32 @@ use std::collections::HashMap;
 use crate::testrun::{Outcome, Testrun};
 use crate::ParserError;
 
+struct RelevantAttrs {
+    classname: Option<String>,
+    name: Option<String>,
+    time: Option<String>,
+}
+
 // from https://gist.github.com/scott-codecov/311c174ecc7de87f7d7c50371c6ef927#file-cobertura-rs-L18-L31
-fn attributes_map(attributes: Attributes) -> PyResult<HashMap<String, String>> {
-    let mut attr_map = HashMap::new();
+fn get_relevant_attrs(attributes: Attributes) -> PyResult<RelevantAttrs> {
+    let mut rel_attrs: RelevantAttrs = RelevantAttrs {
+        time: None,
+        classname: None,
+        name: None,
+    };
     for attribute in attributes {
         let attribute = attribute
             .map_err(|e| ParserError::new_err(format!("Error parsing attribute: {}", e)))?;
         let bytes = attribute.value.into_owned();
         let value = String::from_utf8(bytes)?;
-        let key = String::from_utf8(attribute.key.into_inner().to_vec())?;
-        attr_map.insert(key, value);
+        match attribute.key.into_inner() {
+            b"time" => rel_attrs.time = Some(value),
+            b"classname" => rel_attrs.classname = Some(value),
+            b"name" => rel_attrs.name = Some(value),
+            _ => {}
+        }
     }
-    Ok(attr_map)
+    Ok(rel_attrs)
 }
 
 fn get_attribute(e: &BytesStart, name: &str) -> PyResult<Option<String>> {
@@ -34,19 +48,19 @@ fn get_attribute(e: &BytesStart, name: &str) -> PyResult<Option<String>> {
     Ok(attr)
 }
 
-fn populate(attr_hm: &HashMap<String, String>, testsuite: String) -> PyResult<Testrun> {
+fn populate(rel_attrs: RelevantAttrs, testsuite: String) -> PyResult<Testrun> {
     let name = format!(
         "{}\x1f{}",
-        attr_hm
-            .get("classname")
+        rel_attrs
+            .classname
             .ok_or(ParserError::new_err("No classname found"))?,
-        attr_hm
-            .get("name")
+        rel_attrs
+            .name
             .ok_or(ParserError::new_err("No name found"))?
     );
 
-    let duration = attr_hm
-        .get("time")
+    let duration = rel_attrs
+        .time
         .ok_or(ParserError::new_err("No duration found"))?
         .parse()?;
 
@@ -85,8 +99,8 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<Vec<Testrun>> {
             }
             Ok(Event::Start(e)) => match e.name().as_ref() {
                 b"testcase" => {
-                    let attr_hm = attributes_map(e.attributes())?;
-                    saved_testrun = Some(populate(&attr_hm, curr_testsuite.clone())?);
+                    let rel_attrs = get_relevant_attrs(e.attributes())?;
+                    saved_testrun = Some(populate(rel_attrs, curr_testsuite.clone())?);
                 }
                 b"skipped" => {
                     let testrun = saved_testrun
@@ -128,8 +142,8 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<Vec<Testrun>> {
             },
             Ok(Event::Empty(e)) => {
                 if e.name().as_ref() == b"testcase" {
-                    let attr_hm = attributes_map(e.attributes())?;
-                    list_of_test_runs.push(populate(&attr_hm, curr_testsuite.clone())?);
+                    let rel_attrs = get_relevant_attrs(e.attributes())?;
+                    list_of_test_runs.push(populate(rel_attrs, curr_testsuite.clone())?);
                 }
             }
             Ok(Event::Text(x)) => {
