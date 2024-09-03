@@ -2,7 +2,6 @@ use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 
 mod failure_message;
-mod framework_detectors;
 mod junit;
 mod testrun;
 

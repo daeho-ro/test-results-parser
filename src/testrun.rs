@@ -1,4 +1,6 @@
+use std::collections::HashMap;
 use std::fmt::Display;
+use std::sync::LazyLock;
 
 use pyo3::class::basic::CompareOp;
 use pyo3::{prelude::*, pyclass};
@@ -46,6 +48,42 @@ impl Display for Outcome {
     }
 }
 
+static FRAMEWORKS: LazyLock<Vec<(&str, Framework)>> = LazyLock::new(|| {
+    vec![
+        ("pytest", Framework::Pytest),
+        ("vitest", Framework::Vitest),
+        ("jest", Framework::Jest),
+        ("phpunit", Framework::PHPUnit),
+    ]
+});
+static EXTENSIONS: LazyLock<Vec<(&str, Framework)>> =
+    LazyLock::new(|| vec![(".py", Framework::Pytest), (".php", Framework::PHPUnit)]);
+
+fn check_substring_before_word_boundary(string: &str, substring: &str) -> bool {
+    if let Some((_, suffix)) = string.to_lowercase().split_once(substring) {
+        match suffix.chars().next() {
+            None => {
+                return true;
+            }
+            Some(first_char) => {
+                if !first_char.is_alphanumeric() {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+pub fn check_testsuites_name(testsuites_name: &str) -> Option<Framework> {
+    for (name, framework) in &*FRAMEWORKS {
+        if check_substring_before_word_boundary(testsuites_name, name) {
+            return Some(framework.to_owned());
+        }
+    }
+    None
+}
+
 #[derive(Clone, Debug, PartialEq)]
 #[pyclass]
 pub struct Testrun {
@@ -76,6 +114,35 @@ impl Testrun {
             failure_message: None,
             filename: None,
         }
+    }
+
+    pub fn framework(self: &Self) -> Option<Framework> {
+        for (name, framework) in &*FRAMEWORKS {
+            if check_substring_before_word_boundary(&self.testsuite, name) {
+                return Some(framework.to_owned());
+            }
+        }
+
+        for (extension, framework) in &*EXTENSIONS {
+            if check_substring_before_word_boundary(&self.classname, extension)
+                || check_substring_before_word_boundary(&self.name, extension)
+            {
+                return Some(framework.to_owned());
+            }
+
+            if let Some(message) = &self.failure_message {
+                if check_substring_before_word_boundary(&message, extension) {
+                    return Some(framework.to_owned());
+                }
+            }
+
+            if let Some(filename) = &self.filename {
+                if check_substring_before_word_boundary(&filename, extension) {
+                    return Some(framework.to_owned());
+                }
+            }
+        }
+        None
     }
 }
 
@@ -140,25 +207,12 @@ pub enum Framework {
 
 #[pymethods]
 impl Framework {
-    #[new]
-    #[pyo3(signature = (value=None))]
-    fn new(value: Option<&str>) -> Self {
-        match value {
-            Some("pytest") => Framework::Pytest,
-            Some("vitest") => Framework::Vitest,
-            Some("jest") => Framework::Jest,
-            Some("phpunit") => Framework::PHPUnit,
-            Some(_) => panic!("this should not occur"), // TODO error message here
-            None => panic!("this should not occur"),
-        }
-    }
-
     fn __str__(&self) -> &str {
         match &self {
-            Framework::Pytest => "pytest",
-            Framework::Vitest => "vitest",
-            Framework::Jest => "jest",
-            Framework::PHPUnit => "phpunit",
+            Framework::Pytest => "Pytest",
+            Framework::Vitest => "Vitest",
+            Framework::Jest => "Jest",
+            Framework::PHPUnit => "PHPUnit",
         }
     }
 }
@@ -205,5 +259,92 @@ impl ParsingInfo {
             }
             _ => todo!(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_detect_framework_testsuites_name_no_match() {
+        let f = check_testsuites_name("whatever");
+        assert_eq!(f, None)
+    }
+
+    #[test]
+    fn test_detect_framework_testsuites_name_match() {
+        let f = check_testsuites_name("jest tests");
+        assert_eq!(f, Some(Framework::Jest))
+    }
+
+    #[test]
+    fn test_detect_framework_testsuite_name() {
+        let t = Testrun {
+            classname: "".to_string(),
+            name: "".to_string(),
+            duration: 0.0,
+            outcome: Outcome::Pass,
+            testsuite: "pytest".to_string(),
+            failure_message: None,
+            filename: None,
+        };
+        assert_eq!(t.framework(), Some(Framework::Pytest));
+    }
+
+    #[test]
+    fn test_detect_framework_filenames() {
+        let t = Testrun {
+            classname: "".to_string(),
+            name: "".to_string(),
+            duration: 0.0,
+            outcome: Outcome::Pass,
+            testsuite: "".to_string(),
+            failure_message: None,
+            filename: Some(".py".to_string()),
+        };
+        assert_eq!(t.framework(), Some(Framework::Pytest));
+    }
+
+    #[test]
+    fn test_detect_framework_example_classname() {
+        let t = Testrun {
+            classname: ".py".to_string(),
+            name: "".to_string(),
+            duration: 0.0,
+            outcome: Outcome::Pass,
+            testsuite: "".to_string(),
+            failure_message: None,
+            filename: None,
+        };
+        assert_eq!(t.framework(), Some(Framework::Pytest));
+    }
+
+    #[test]
+    fn test_detect_framework_example_name() {
+        let t = Testrun {
+            classname: "".to_string(),
+            name: ".py".to_string(),
+            duration: 0.0,
+            outcome: Outcome::Pass,
+            testsuite: "".to_string(),
+            failure_message: None,
+            filename: None,
+        };
+        assert_eq!(t.framework(), Some(Framework::Pytest));
+    }
+
+    #[test]
+    fn test_detect_framework_failure_messages() {
+        let t = Testrun {
+            classname: "".to_string(),
+            name: "".to_string(),
+            duration: 0.0,
+            outcome: Outcome::Pass,
+            testsuite: "".to_string(),
+            failure_message: Some(".py".to_string()),
+            filename: None,
+        };
+        assert_eq!(t.framework(), Some(Framework::Pytest));
     }
 }

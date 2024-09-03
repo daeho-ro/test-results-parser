@@ -4,8 +4,7 @@ use quick_xml::events::attributes::Attributes;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::reader::Reader;
 
-use crate::framework_detectors::detect_framework;
-use crate::testrun::{Outcome, ParsingInfo, Testrun};
+use crate::testrun::{check_testsuites_name, Outcome, ParsingInfo, Testrun};
 use crate::ParserError;
 
 struct RelevantAttrs {
@@ -80,7 +79,7 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
     let mut reader = Reader::from_reader(file_bytes);
     reader.config_mut().trim_text(true);
 
-    let mut list_of_test_runs: Vec<Testrun> = Vec::new();
+    let mut testruns: Vec<Testrun> = Vec::new();
     let mut saved_testrun: Option<Testrun> = None;
 
     let mut curr_testsuite = String::new();
@@ -88,96 +87,60 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
 
     let mut buf = Vec::new();
 
-    // set when we parse the testsuites tag
-    let mut testsuites_name: String = "".to_string();
+    let mut testsuites_name: Option<String> = None;
 
-    // set every time we finish parsing a testcase
-    let mut testsuite_names: Vec<String> = Vec::new();
-    let mut filenames = Vec::new();
-    let mut failure_messages = Vec::new();
-
-    // set the first time we finish parsing a testcase
-    let mut example_class_name = "".to_string();
-    let mut example_test_name = "".to_string();
-
-    let mut on_testcase_finish = |testrun: Testrun, ts: String| {
-        testsuite_names.push(ts.clone());
-        match testrun.filename.clone() {
-            Some(x) => {
-                filenames.push(x);
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Err(e) => {
+                return Err(ParserError::new_err(format!(
+                    "Error parsing XML at position: {} {:?}",
+                    reader.buffer_position(),
+                    e
+                )))
             }
-            None => {}
-        }
-        match testrun.failure_message.clone() {
-            Some(x) => {
-                failure_messages.push(x);
+            Ok(Event::Eof) => {
+                break;
             }
-            None => {}
-        }
-        if example_class_name == "" {
-            example_class_name = testrun.classname.clone();
-        }
-        if example_test_name == "" {
-            example_test_name = (testrun.name).clone();
-        }
-        list_of_test_runs.push(testrun);
-    };
-
-    let loop_result =
-        loop {
-            match reader.read_event_into(&mut buf) {
-                Err(e) => {
-                    break Err(ParserError::new_err(format!(
-                        "Error parsing XML at position: {} {:?}",
-                        reader.buffer_position(),
-                        e
-                    )))
+            Ok(Event::Start(e)) => match e.name().as_ref() {
+                b"testcase" => {
+                    let rel_attrs = get_relevant_attrs(e.attributes())?;
+                    saved_testrun = Some(populate(rel_attrs, curr_testsuite.clone())?);
                 }
-                Ok(Event::Eof) => {
-                    break Ok(list_of_test_runs);
+                b"skipped" => {
+                    let testrun = saved_testrun
+                        .as_mut()
+                        .ok_or(ParserError::new_err("Error accessing saved testrun"))?;
+                    testrun.outcome = Outcome::Skip;
                 }
-                Ok(Event::Start(e)) => match e.name().as_ref() {
-                    b"testcase" => {
-                        let rel_attrs = get_relevant_attrs(e.attributes())?;
-                        saved_testrun = Some(populate(rel_attrs, curr_testsuite.clone())?);
-                    }
-                    b"skipped" => {
-                        let testrun = saved_testrun
-                            .as_mut()
-                            .ok_or(ParserError::new_err("Error accessing saved testrun"))?;
-                        testrun.outcome = Outcome::Skip;
-                    }
-                    b"error" => {
-                        let testrun = saved_testrun
-                            .as_mut()
-                            .ok_or(ParserError::new_err("Error accessing saved testrun"))?;
-                        testrun.outcome = Outcome::Error;
-                    }
-                    b"failure" => {
-                        let testrun = saved_testrun
-                            .as_mut()
-                            .ok_or(ParserError::new_err("Error accessing saved testrun"))?;
-                        testrun.outcome = Outcome::Failure;
+                b"error" => {
+                    let testrun = saved_testrun
+                        .as_mut()
+                        .ok_or(ParserError::new_err("Error accessing saved testrun"))?;
+                    testrun.outcome = Outcome::Error;
+                }
+                b"failure" => {
+                    let testrun = saved_testrun
+                        .as_mut()
+                        .ok_or(ParserError::new_err("Error accessing saved testrun"))?;
+                    testrun.outcome = Outcome::Failure;
 
-                        testrun.failure_message = get_attribute(&e, "message")?;
-                        in_failure = true;
-                    }
-                    b"testsuite" => {
-                        curr_testsuite = get_attribute(&e, "name")?
-                            .ok_or(ParserError::new_err("Error getting name".to_string()))?;
-                    }
-                    b"testsuites" => {
-                        testsuites_name = match get_attribute(&e, "name")? {
-                            None => "".to_string(),
-                            Some(x) => x,
-                        };
-                    }
-                    _ => {}
-                },
-                Ok(Event::End(e)) => match e.name().as_ref() {
+                    testrun.failure_message = get_attribute(&e, "message")?;
+                    in_failure = true;
+                }
+                b"testsuite" => {
+                    curr_testsuite = get_attribute(&e, "name")?
+                        .ok_or(ParserError::new_err("Error getting name".to_string()))?;
+                }
+                b"testsuites" => {
+                    testsuites_name = get_attribute(&e, "name")?;
+                }
+                _ => {}
+            },
+            Ok(Event::End(e)) => {
+                match e.name().as_ref() {
                     b"testcase" => match saved_testrun {
                         Some(testrun) => {
-                            on_testcase_finish(testrun, curr_testsuite.clone());
+                            testruns.push(testrun);
                             saved_testrun = None;
                         }
                         None => return Err(ParserError::new_err(
@@ -187,52 +150,52 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                     },
                     b"failure" => in_failure = false,
                     _ => (),
-                },
-                Ok(Event::Empty(e)) => {
-                    if e.name().as_ref() == b"testcase" {
-                        let rel_attrs = get_relevant_attrs(e.attributes())?;
-                        let testrun = populate(rel_attrs, curr_testsuite.clone())?;
-                        on_testcase_finish(testrun, curr_testsuite.clone());
-                    }
                 }
-                Ok(Event::Text(x)) => {
-                    if in_failure {
-                        let testrun = saved_testrun
-                            .as_mut()
-                            .ok_or(ParserError::new_err("Error accessing saved testrun"))?;
-
-                        let mut xml_failure_message = x.into_owned();
-                        xml_failure_message.inplace_trim_end();
-                        xml_failure_message.inplace_trim_start();
-
-                        testrun.failure_message =
-                            Some(String::from_utf8(xml_failure_message.as_ref().to_vec())?);
-                    }
-                }
-
-                // There are several other `Event`s we do not consider here
-                _ => (),
             }
-            buf.clear()
-        };
+            Ok(Event::Empty(e)) => {
+                if e.name().as_ref() == b"testcase" {
+                    let rel_attrs = get_relevant_attrs(e.attributes())?;
+                    let testrun = populate(rel_attrs, curr_testsuite.clone())?;
+                    testruns.push(testrun);
+                }
+            }
+            Ok(Event::Text(x)) => {
+                if in_failure {
+                    let testrun = saved_testrun
+                        .as_mut()
+                        .ok_or(ParserError::new_err("Error accessing saved testrun"))?;
 
-    match loop_result {
-        Ok(testruns) => {
-            // detect framework based on all the information we'e collected so far
-            let framework = detect_framework(
-                testsuites_name,
-                testsuite_names,
-                filenames,
-                example_class_name,
-                example_test_name,
-                failure_messages,
-            );
+                    let mut xml_failure_message = x.into_owned();
+                    xml_failure_message.inplace_trim_end();
+                    xml_failure_message.inplace_trim_start();
 
-            Ok(ParsingInfo {
-                framework,
-                testruns,
-            })
+                    testrun.failure_message =
+                        Some(String::from_utf8(xml_failure_message.as_ref().to_vec())?);
+                }
+            }
+
+            // There are several other `Event`s we do not consider here
+            _ => (),
         }
-        Err(x) => Err(x),
+        buf.clear()
     }
+
+    let mut framework = None;
+    for testrun in &testruns {
+        if let Some(matched_framework) = testrun.framework() {
+            framework = Some(matched_framework);
+            break;
+        }
+    }
+
+    if framework.is_none() {
+        if let Some(name) = testsuites_name {
+            framework = check_testsuites_name(&name);
+        }
+    }
+
+    Ok(ParsingInfo {
+        framework,
+        testruns,
+    })
 }
