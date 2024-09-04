@@ -90,18 +90,18 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
     let mut testsuites_name: Option<String> = None;
 
     loop {
-        match reader.read_event_into(&mut buf) {
-            Err(e) => {
-                return Err(ParserError::new_err(format!(
-                    "Error parsing XML at position: {} {:?}",
-                    reader.buffer_position(),
-                    e
-                )))
-            }
-            Ok(Event::Eof) => {
+        let event = reader.read_event_into(&mut buf).map_err(|e| {
+            ParserError::new_err(format!(
+                "Error parsing XML at position: {} {:?}",
+                reader.buffer_position(),
+                e
+            ))
+        })?;
+        match event {
+            Event::Eof => {
                 break;
             }
-            Ok(Event::Start(e)) => match e.name().as_ref() {
+            Event::Start(e) => match e.name().as_ref() {
                 b"testcase" => {
                     let rel_attrs = get_relevant_attrs(e.attributes())?;
                     saved_testrun = Some(populate(rel_attrs, curr_testsuite.clone())?);
@@ -136,30 +136,26 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                 }
                 _ => {}
             },
-            Ok(Event::End(e)) => {
-                match e.name().as_ref() {
-                    b"testcase" => match saved_testrun {
-                        Some(testrun) => {
-                            testruns.push(testrun);
-                            saved_testrun = None;
-                        }
-                        None => return Err(ParserError::new_err(
-                            "Met testcase closing tag without first meeting testcase opening tag"
-                                .to_string(),
-                        )),
-                    },
-                    b"failure" => in_failure = false,
-                    _ => (),
+            Event::End(e) => match e.name().as_ref() {
+                b"testcase" => {
+                    let testrun = saved_testrun.ok_or(ParserError::new_err(
+                        "Met testcase closing tag without first meeting testcase opening tag"
+                            .to_string(),
+                    ))?;
+                    testruns.push(testrun);
+                    saved_testrun = None;
                 }
-            }
-            Ok(Event::Empty(e)) => {
+                b"failure" => in_failure = false,
+                _ => (),
+            },
+            Event::Empty(e) => {
                 if e.name().as_ref() == b"testcase" {
                     let rel_attrs = get_relevant_attrs(e.attributes())?;
                     let testrun = populate(rel_attrs, curr_testsuite.clone())?;
                     testruns.push(testrun);
                 }
             }
-            Ok(Event::Text(x)) => {
+            Event::Text(x) => {
                 if in_failure {
                     let testrun = saved_testrun
                         .as_mut()
@@ -180,13 +176,7 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
         buf.clear()
     }
 
-    let mut framework = None;
-    for testrun in &testruns {
-        if let Some(matched_framework) = testrun.framework() {
-            framework = Some(matched_framework);
-            break;
-        }
-    }
+    let mut framework = testruns.iter().filter_map(|t| t.framework()).next();
 
     if framework.is_none() {
         if let Some(name) = testsuites_name {

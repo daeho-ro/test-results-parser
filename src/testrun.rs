@@ -1,6 +1,4 @@
-use std::collections::HashMap;
 use std::fmt::Display;
-use std::sync::LazyLock;
 
 use pyo3::class::basic::CompareOp;
 use pyo3::{prelude::*, pyclass};
@@ -48,40 +46,33 @@ impl Display for Outcome {
     }
 }
 
-static FRAMEWORKS: LazyLock<Vec<(&str, Framework)>> = LazyLock::new(|| {
-    vec![
-        ("pytest", Framework::Pytest),
-        ("vitest", Framework::Vitest),
-        ("jest", Framework::Jest),
-        ("phpunit", Framework::PHPUnit),
-    ]
-});
-static EXTENSIONS: LazyLock<Vec<(&str, Framework)>> =
-    LazyLock::new(|| vec![(".py", Framework::Pytest), (".php", Framework::PHPUnit)]);
+static FRAMEWORKS: &[(&str, Framework)] = &[
+    ("pytest", Framework::Pytest),
+    ("vitest", Framework::Vitest),
+    ("jest", Framework::Jest),
+    ("phpunit", Framework::PHPUnit),
+];
+
+static EXTENSIONS: &[(&str, Framework)] =
+    &[(".py", Framework::Pytest), (".php", Framework::PHPUnit)];
 
 fn check_substring_before_word_boundary(string: &str, substring: &str) -> bool {
     if let Some((_, suffix)) = string.to_lowercase().split_once(substring) {
-        match suffix.chars().next() {
-            None => {
-                return true;
-            }
-            Some(first_char) => {
-                if !first_char.is_alphanumeric() {
-                    return true;
-                }
-            }
-        }
+        return suffix
+            .chars()
+            .next()
+            .map_or(true, |first_char| !first_char.is_alphanumeric());
     }
     false
 }
 
 pub fn check_testsuites_name(testsuites_name: &str) -> Option<Framework> {
-    for (name, framework) in &*FRAMEWORKS {
-        if check_substring_before_word_boundary(testsuites_name, name) {
-            return Some(framework.to_owned());
-        }
-    }
-    None
+    FRAMEWORKS
+        .iter()
+        .filter_map(|(name, framework)| {
+            check_substring_before_word_boundary(testsuites_name, name).then_some(*framework)
+        })
+        .next()
 }
 
 #[derive(Clone, Debug, PartialEq)]
