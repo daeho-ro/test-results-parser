@@ -4,13 +4,14 @@ use quick_xml::events::attributes::Attributes;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::reader::Reader;
 
-use crate::testrun::{Outcome, Testrun};
+use crate::testrun::{check_testsuites_name, Outcome, ParsingInfo, Testrun};
 use crate::ParserError;
 
 struct RelevantAttrs {
     classname: Option<String>,
     name: Option<String>,
     time: Option<String>,
+    file: Option<String>,
 }
 
 // from https://gist.github.com/scott-codecov/311c174ecc7de87f7d7c50371c6ef927#file-cobertura-rs-L18-L31
@@ -19,6 +20,7 @@ fn get_relevant_attrs(attributes: Attributes) -> PyResult<RelevantAttrs> {
         time: None,
         classname: None,
         name: None,
+        file: None,
     };
     for attribute in attributes {
         let attribute = attribute
@@ -29,6 +31,7 @@ fn get_relevant_attrs(attributes: Attributes) -> PyResult<RelevantAttrs> {
             b"time" => rel_attrs.time = Some(value),
             b"classname" => rel_attrs.classname = Some(value),
             b"name" => rel_attrs.name = Some(value),
+            b"file" => rel_attrs.file = Some(value),
             _ => {}
         }
     }
@@ -48,55 +51,57 @@ fn get_attribute(e: &BytesStart, name: &str) -> PyResult<Option<String>> {
 }
 
 fn populate(rel_attrs: RelevantAttrs, testsuite: String) -> PyResult<Testrun> {
-    let name = format!(
-        "{}\x1f{}",
-        rel_attrs
-            .classname
-            .ok_or(ParserError::new_err("No classname found"))?,
-        rel_attrs
-            .name
-            .ok_or(ParserError::new_err("No name found"))?
-    );
+    let classname = rel_attrs
+        .classname
+        .ok_or_else(|| ParserError::new_err("No classname found"))?;
+    let name = rel_attrs
+        .name
+        .ok_or_else(|| ParserError::new_err("No name found"))?;
 
     let duration = rel_attrs
         .time
-        .ok_or(ParserError::new_err("No duration found"))?
+        .ok_or_else(|| ParserError::new_err("No duration found"))?
         .parse()?;
 
     Ok(Testrun {
         name,
+        classname,
         duration,
         outcome: Outcome::Pass,
         testsuite,
         failure_message: None,
+        filename: rel_attrs.file,
     })
 }
 
 #[pyfunction]
-pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<Vec<Testrun>> {
+pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
     let mut reader = Reader::from_reader(file_bytes);
     reader.config_mut().trim_text(true);
 
-    let mut list_of_test_runs = Vec::new();
+    let mut testruns: Vec<Testrun> = Vec::new();
     let mut saved_testrun: Option<Testrun> = None;
 
     let mut curr_testsuite = String::new();
     let mut in_failure: bool = false;
 
     let mut buf = Vec::new();
+
+    let mut testsuites_name: Option<String> = None;
+
     loop {
-        match reader.read_event_into(&mut buf) {
-            Err(e) => {
-                break Err(ParserError::new_err(format!(
-                    "Error parsing XML at position: {} {:?}",
-                    reader.buffer_position(),
-                    e
-                )))
+        let event = reader.read_event_into(&mut buf).map_err(|e| {
+            ParserError::new_err(format!(
+                "Error parsing XML at position: {} {:?}",
+                reader.buffer_position(),
+                e
+            ))
+        })?;
+        match event {
+            Event::Eof => {
+                break;
             }
-            Ok(Event::Eof) => {
-                break Ok(list_of_test_runs);
-            }
-            Ok(Event::Start(e)) => match e.name().as_ref() {
+            Event::Start(e) => match e.name().as_ref() {
                 b"testcase" => {
                     let rel_attrs = get_relevant_attrs(e.attributes())?;
                     saved_testrun = Some(populate(rel_attrs, curr_testsuite.clone())?);
@@ -104,19 +109,19 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<Vec<Testrun>> {
                 b"skipped" => {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or(ParserError::new_err("Error accessing saved testrun"))?;
+                        .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
                     testrun.outcome = Outcome::Skip;
                 }
                 b"error" => {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or(ParserError::new_err("Error accessing saved testrun"))?;
+                        .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
                     testrun.outcome = Outcome::Error;
                 }
                 b"failure" => {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or(ParserError::new_err("Error accessing saved testrun"))?;
+                        .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
                     testrun.outcome = Outcome::Failure;
 
                     testrun.failure_message = get_attribute(&e, "message")?;
@@ -124,32 +129,38 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<Vec<Testrun>> {
                 }
                 b"testsuite" => {
                     curr_testsuite = get_attribute(&e, "name")?
-                        .ok_or(ParserError::new_err("Error getting name".to_string()))?;
+                        .ok_or_else(|| ParserError::new_err("Error getting name"))?;
+                }
+                b"testsuites" => {
+                    testsuites_name = get_attribute(&e, "name")?;
                 }
                 _ => {}
             },
-            Ok(Event::End(e)) => match e.name().as_ref() {
+            Event::End(e) => match e.name().as_ref() {
                 b"testcase" => {
-                    list_of_test_runs.push(
-                        saved_testrun
-                            .ok_or(ParserError::new_err("Error accessing saved testrun"))?,
-                    );
+                    let testrun = saved_testrun.ok_or_else(|| {
+                        ParserError::new_err(
+                            "Met testcase closing tag without first meeting testcase opening tag",
+                        )
+                    })?;
+                    testruns.push(testrun);
                     saved_testrun = None;
                 }
                 b"failure" => in_failure = false,
                 _ => (),
             },
-            Ok(Event::Empty(e)) => {
+            Event::Empty(e) => {
                 if e.name().as_ref() == b"testcase" {
                     let rel_attrs = get_relevant_attrs(e.attributes())?;
-                    list_of_test_runs.push(populate(rel_attrs, curr_testsuite.clone())?);
+                    let testrun = populate(rel_attrs, curr_testsuite.clone())?;
+                    testruns.push(testrun);
                 }
             }
-            Ok(Event::Text(x)) => {
+            Event::Text(x) => {
                 if in_failure {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or(ParserError::new_err("Error accessing saved testrun"))?;
+                        .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
 
                     let mut xml_failure_message = x.into_owned();
                     xml_failure_message.inplace_trim_end();
@@ -165,4 +176,17 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<Vec<Testrun>> {
         }
         buf.clear()
     }
+
+    let mut framework = testruns.iter().filter_map(|t| t.framework()).next();
+
+    if framework.is_none() {
+        if let Some(name) = testsuites_name {
+            framework = check_testsuites_name(&name);
+        }
+    }
+
+    Ok(ParsingInfo {
+        framework,
+        testruns,
+    })
 }
