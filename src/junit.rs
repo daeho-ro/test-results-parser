@@ -50,7 +50,11 @@ fn get_attribute(e: &BytesStart, name: &str) -> PyResult<Option<String>> {
     Ok(attr)
 }
 
-fn populate(rel_attrs: RelevantAttrs, testsuite: String) -> PyResult<Testrun> {
+fn populate(
+    rel_attrs: RelevantAttrs,
+    testsuite: String,
+    testsuite_time: Option<String>,
+) -> PyResult<Testrun> {
     let classname = rel_attrs
         .classname
         .ok_or_else(|| ParserError::new_err("No classname found"))?;
@@ -58,10 +62,12 @@ fn populate(rel_attrs: RelevantAttrs, testsuite: String) -> PyResult<Testrun> {
         .name
         .ok_or_else(|| ParserError::new_err("No name found"))?;
 
-    let duration = rel_attrs
-        .time
-        .ok_or_else(|| ParserError::new_err("No duration found"))?
-        .parse()?;
+    let duration = match rel_attrs.time {
+        None => testsuite_time
+            .ok_or_else(|| ParserError::new_err("No time/duration found"))?
+            .parse()?,
+        Some(time_str) => time_str.parse()?,
+    };
 
     Ok(Testrun {
         name,
@@ -89,6 +95,8 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
 
     let mut testsuites_name: Option<String> = None;
 
+    let mut testsuite_time = vec![None];
+
     loop {
         let event = reader.read_event_into(&mut buf).map_err(|e| {
             ParserError::new_err(format!(
@@ -104,7 +112,11 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
             Event::Start(e) => match e.name().as_ref() {
                 b"testcase" => {
                     let rel_attrs = get_relevant_attrs(e.attributes())?;
-                    saved_testrun = Some(populate(rel_attrs, curr_testsuite.clone())?);
+                    saved_testrun = Some(populate(
+                        rel_attrs,
+                        curr_testsuite.clone(),
+                        testsuite_time.last().unwrap().to_owned(),
+                    )?);
                 }
                 b"skipped" => {
                     let testrun = saved_testrun
@@ -130,6 +142,11 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                 b"testsuite" => {
                     curr_testsuite = get_attribute(&e, "name")?
                         .ok_or_else(|| ParserError::new_err("Error getting name"))?;
+
+                    match get_attribute(&e, "time")? {
+                        None => testsuite_time.push(testsuite_time.last().unwrap().to_owned()),
+                        Some(time_str) => testsuite_time.push(Some(time_str)),
+                    }
                 }
                 b"testsuites" => {
                     testsuites_name = get_attribute(&e, "name")?;
@@ -152,7 +169,11 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
             Event::Empty(e) => {
                 if e.name().as_ref() == b"testcase" {
                     let rel_attrs = get_relevant_attrs(e.attributes())?;
-                    let testrun = populate(rel_attrs, curr_testsuite.clone())?;
+                    let testrun = populate(
+                        rel_attrs,
+                        curr_testsuite.clone(),
+                        testsuite_time.last().unwrap().to_owned(),
+                    )?;
                     testruns.push(testrun);
                 }
             }
