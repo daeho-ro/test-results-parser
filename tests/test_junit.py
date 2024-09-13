@@ -80,6 +80,32 @@ tests/test_parsers.py:16: AssertionError""",
                 ),
             ),
             (
+                "./tests/junit-nested-testsuite.xml",
+                ParsingInfo(
+                    Framework.Pytest,
+                    [
+                        Testrun(
+                            "test_junit[junit.xml--True]",
+                            "tests.test_parsers.TestParsers",
+                            0.186,
+                            Outcome.Failure,
+                            "nested_testsuite",
+                            """aaaaaaa""",
+                            None,
+                        ),
+                        Testrun(
+                            "test_junit[jest-junit.xml--False]",
+                            "tests.test_parsers.TestParsers",
+                            0.186,
+                            Outcome.Pass,
+                            "pytest",
+                            None,
+                            None,
+                        ),
+                    ],
+                ),
+            ),
+            (
                 "./tests/jest-junit.xml",
                 ParsingInfo(
                     Framework.Jest,

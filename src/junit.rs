@@ -88,14 +88,17 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
     let mut testruns: Vec<Testrun> = Vec::new();
     let mut saved_testrun: Option<Testrun> = None;
 
-    let mut curr_testsuite = String::new();
     let mut in_failure: bool = false;
 
     let mut buf = Vec::new();
 
     let mut testsuites_name: Option<String> = None;
 
+    // every time we come across a testsuite element we update this vector:
+    // if the testsuite element contains the time attribute append its value to this vec
+    // else append a clone of the last value in the vec
     let mut testsuite_time = vec![None];
+    let mut testsuite_names: Vec<Option<String>> = vec![None];
 
     loop {
         let event = reader.read_event_into(&mut buf).map_err(|e| {
@@ -114,7 +117,11 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                     let rel_attrs = get_relevant_attrs(e.attributes())?;
                     saved_testrun = Some(populate(
                         rel_attrs,
-                        curr_testsuite.clone(),
+                        testsuite_names
+                            .last()
+                            .unwrap()
+                            .to_owned()
+                            .ok_or_else(|| ParserError::new_err("No testsuite name found"))?,
                         testsuite_time.last().unwrap().to_owned(),
                     )?);
                 }
@@ -140,12 +147,14 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                     in_failure = true;
                 }
                 b"testsuite" => {
-                    curr_testsuite = get_attribute(&e, "name")?
-                        .ok_or_else(|| ParserError::new_err("Error getting name"))?;
+                    match get_attribute(&e, "name")? {
+                        None => testsuite_names.push(testsuite_names.last().unwrap().to_owned()),
+                        Some(name) => testsuite_names.push(Some(name)),
+                    };
 
                     match get_attribute(&e, "time")? {
                         None => testsuite_time.push(testsuite_time.last().unwrap().to_owned()),
-                        Some(time_str) => testsuite_time.push(Some(time_str)),
+                        Some(time) => testsuite_time.push(Some(time)),
                     }
                 }
                 b"testsuites" => {
@@ -164,6 +173,10 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                     saved_testrun = None;
                 }
                 b"failure" => in_failure = false,
+                b"testsuite" => {
+                    testsuite_time.pop();
+                    testsuite_names.pop();
+                }
                 _ => (),
             },
             Event::Empty(e) => {
@@ -171,7 +184,11 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                     let rel_attrs = get_relevant_attrs(e.attributes())?;
                     let testrun = populate(
                         rel_attrs,
-                        curr_testsuite.clone(),
+                        testsuite_names
+                            .last()
+                            .unwrap()
+                            .to_owned()
+                            .ok_or_else(|| ParserError::new_err("No testsuite name found"))?,
                         testsuite_time.last().unwrap().to_owned(),
                     )?;
                     testruns.push(testrun);
