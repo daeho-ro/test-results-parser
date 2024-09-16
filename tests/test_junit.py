@@ -54,6 +54,58 @@ tests/test_parsers.py:16: AssertionError""",
                 ),
             ),
             (
+                "./tests/junit-no-testcase-timestamp.xml",
+                ParsingInfo(
+                    Framework.Pytest,
+                    [
+                        Testrun(
+                            "test_junit[junit.xml--True]",
+                            "tests.test_parsers.TestParsers",
+                            0.186,
+                            Outcome.Failure,
+                            "pytest",
+                            """aaaaaaa""",
+                            None,
+                        ),
+                        Testrun(
+                            "test_junit[jest-junit.xml--False]",
+                            "tests.test_parsers.TestParsers",
+                            0.186,
+                            Outcome.Pass,
+                            "pytest",
+                            None,
+                            None,
+                        ),
+                    ],
+                ),
+            ),
+            (
+                "./tests/junit-nested-testsuite.xml",
+                ParsingInfo(
+                    Framework.Pytest,
+                    [
+                        Testrun(
+                            "test_junit[junit.xml--True]",
+                            "tests.test_parsers.TestParsers",
+                            0.186,
+                            Outcome.Failure,
+                            "nested_testsuite",
+                            """aaaaaaa""",
+                            None,
+                        ),
+                        Testrun(
+                            "test_junit[jest-junit.xml--False]",
+                            "tests.test_parsers.TestParsers",
+                            0.186,
+                            Outcome.Pass,
+                            "pytest",
+                            None,
+                            None,
+                        ),
+                    ],
+                ),
+            ),
+            (
                 "./tests/jest-junit.xml",
                 ParsingInfo(
                     Framework.Jest,
@@ -184,4 +236,20 @@ tests/test_parsers.py:16: AssertionError""",
             assert res.framework == expected.framework
             assert len(res.testruns) == len(expected.testruns)
             for restest, extest in zip(res.testruns, expected.testruns):
+                print(
+                    restest.classname,
+                    restest.duration,
+                    restest.filename,
+                    restest.name,
+                    restest.outcome,
+                    restest.testsuite,
+                )
+                print(
+                    extest.classname,
+                    extest.duration,
+                    extest.filename,
+                    extest.name,
+                    extest.outcome,
+                    extest.testsuite,
+                )
                 assert restest == extest

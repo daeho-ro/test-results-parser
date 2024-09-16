@@ -4,12 +4,12 @@
         <testcase classname="test.test"
             name="test.test works"
             file="./test.rb" time="0.234" />
-    </testsuite>
-    <testcase classname="test.test"
-        name="test.test fails"
-        file="./test.rb" time="1.000">
-        <failure message="TestError"
-            type="TestError">
+        <testcase classname="test.test"
+            name="test.test fails"
+            file="./test.rb" time="1.000">
+            <failure message="TestError"
+                type="TestError">
 </failure>
-    </testcase>
+        </testcase>
+    </testsuite>
 </testsuites>

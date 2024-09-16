@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+    <testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="0.186"
+        timestamp="2023-11-10T12:32:56.675324" hostname="VFHNWJDWH9.local">
+        <testsuite name="nested_testsuite" errors="0" failures="1" skipped="0" tests="2"
+            time="0.186"
+            timestamp="2023-11-10T12:32:56.675324" hostname="VFHNWJDWH9.local">
+            <testcase classname="tests.test_parsers.TestParsers" name="test_junit[junit.xml--True]"
+            >
+                <failure
+                    message="aaaaaaa'">
+                    aaaaaaa</failure>
+            </testcase>
+        </testsuite>
+        <testcase classname="tests.test_parsers.TestParsers"
+            name="test_junit[jest-junit.xml--False]" />
+    </testsuite>
+</testsuites>

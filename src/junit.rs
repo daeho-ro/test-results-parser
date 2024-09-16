@@ -50,7 +50,11 @@ fn get_attribute(e: &BytesStart, name: &str) -> PyResult<Option<String>> {
     Ok(attr)
 }
 
-fn populate(rel_attrs: RelevantAttrs, testsuite: String) -> PyResult<Testrun> {
+fn populate(
+    rel_attrs: RelevantAttrs,
+    testsuite: String,
+    testsuite_time: Option<String>,
+) -> PyResult<Testrun> {
     let classname = rel_attrs
         .classname
         .ok_or_else(|| ParserError::new_err("No classname found"))?;
@@ -58,10 +62,12 @@ fn populate(rel_attrs: RelevantAttrs, testsuite: String) -> PyResult<Testrun> {
         .name
         .ok_or_else(|| ParserError::new_err("No name found"))?;
 
-    let duration = rel_attrs
-        .time
-        .ok_or_else(|| ParserError::new_err("No duration found"))?
-        .parse()?;
+    let duration = match rel_attrs.time {
+        None => testsuite_time
+            .ok_or_else(|| ParserError::new_err("No time/duration found"))?
+            .parse()?,
+        Some(time_str) => time_str.parse()?,
+    };
 
     Ok(Testrun {
         name,
@@ -82,12 +88,17 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
     let mut testruns: Vec<Testrun> = Vec::new();
     let mut saved_testrun: Option<Testrun> = None;
 
-    let mut curr_testsuite = String::new();
     let mut in_failure: bool = false;
 
     let mut buf = Vec::new();
 
     let mut testsuites_name: Option<String> = None;
+
+    // every time we come across a testsuite element we update this vector:
+    // if the testsuite element contains the time attribute append its value to this vec
+    // else append a clone of the last value in the vec
+    let mut testsuite_time: Vec<Option<String>> = vec![];
+    let mut testsuite_names: Vec<Option<String>> = vec![];
 
     loop {
         let event = reader.read_event_into(&mut buf).map_err(|e| {
@@ -104,7 +115,16 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
             Event::Start(e) => match e.name().as_ref() {
                 b"testcase" => {
                     let rel_attrs = get_relevant_attrs(e.attributes())?;
-                    saved_testrun = Some(populate(rel_attrs, curr_testsuite.clone())?);
+                    saved_testrun = Some(populate(
+                        rel_attrs,
+                        testsuite_names
+                            .iter()
+                            .rev()
+                            .find_map(|e| e.clone())
+                            .clone()
+                            .ok_or_else(|| ParserError::new_err("No testsuite name found"))?,
+                        testsuite_time.iter().rev().find_map(|e| e.clone()),
+                    )?);
                 }
                 b"skipped" => {
                     let testrun = saved_testrun
@@ -128,8 +148,8 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                     in_failure = true;
                 }
                 b"testsuite" => {
-                    curr_testsuite = get_attribute(&e, "name")?
-                        .ok_or_else(|| ParserError::new_err("Error getting name"))?;
+                    testsuite_names.push(get_attribute(&e, "name")?);
+                    testsuite_time.push(get_attribute(&e, "time")?);
                 }
                 b"testsuites" => {
                     testsuites_name = get_attribute(&e, "name")?;
@@ -147,12 +167,24 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                     saved_testrun = None;
                 }
                 b"failure" => in_failure = false,
+                b"testsuite" => {
+                    testsuite_time.pop();
+                    testsuite_names.pop();
+                }
                 _ => (),
             },
             Event::Empty(e) => {
                 if e.name().as_ref() == b"testcase" {
                     let rel_attrs = get_relevant_attrs(e.attributes())?;
-                    let testrun = populate(rel_attrs, curr_testsuite.clone())?;
+                    let testrun = populate(
+                        rel_attrs,
+                        testsuite_names
+                            .last()
+                            .unwrap()
+                            .to_owned()
+                            .ok_or_else(|| ParserError::new_err("No testsuite name found"))?,
+                        testsuite_time.last().unwrap().to_owned(),
+                    )?;
                     testruns.push(testrun);
                 }
             }
