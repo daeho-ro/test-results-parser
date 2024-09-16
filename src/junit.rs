@@ -55,9 +55,11 @@ fn populate(
     testsuite: String,
     testsuite_time: Option<String>,
 ) -> PyResult<Testrun> {
-    let classname = rel_attrs
-        .classname
-        .ok_or_else(|| ParserError::new_err("No classname found"))?;
+    let classname = match rel_attrs.classname {
+        None => "".to_string(),
+        Some(x) => x,
+    };
+
     let name = rel_attrs
         .name
         .ok_or_else(|| ParserError::new_err("No name found"))?;

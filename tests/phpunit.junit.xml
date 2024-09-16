@@ -15,7 +15,7 @@
                 name="test2"
                 file="/file1.php"
                 line="2"
-                classname="class.className" assertions="1"
+                assertions="1"
                 time="0.1" />
         </testsuite>
     </testsuite>
