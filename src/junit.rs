@@ -97,8 +97,8 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
     // every time we come across a testsuite element we update this vector:
     // if the testsuite element contains the time attribute append its value to this vec
     // else append a clone of the last value in the vec
-    let mut testsuite_time = vec![None];
-    let mut testsuite_names: Vec<Option<String>> = vec![None];
+    let mut testsuite_time: Vec<Option<String>> = vec![];
+    let mut testsuite_names: Vec<Option<String>> = vec![];
 
     loop {
         let event = reader.read_event_into(&mut buf).map_err(|e| {
@@ -118,11 +118,12 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                     saved_testrun = Some(populate(
                         rel_attrs,
                         testsuite_names
-                            .last()
-                            .unwrap()
-                            .to_owned()
+                            .iter()
+                            .rev()
+                            .find_map(|e| e.clone())
+                            .clone()
                             .ok_or_else(|| ParserError::new_err("No testsuite name found"))?,
-                        testsuite_time.last().unwrap().to_owned(),
+                        testsuite_time.iter().rev().find_map(|e| e.clone()),
                     )?);
                 }
                 b"skipped" => {
@@ -147,15 +148,8 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                     in_failure = true;
                 }
                 b"testsuite" => {
-                    match get_attribute(&e, "name")? {
-                        None => testsuite_names.push(testsuite_names.last().unwrap().to_owned()),
-                        Some(name) => testsuite_names.push(Some(name)),
-                    };
-
-                    match get_attribute(&e, "time")? {
-                        None => testsuite_time.push(testsuite_time.last().unwrap().to_owned()),
-                        Some(time) => testsuite_time.push(Some(time)),
-                    }
+                    testsuite_names.push(get_attribute(&e, "name")?);
+                    testsuite_time.push(get_attribute(&e, "time")?);
                 }
                 b"testsuites" => {
                     testsuites_name = get_attribute(&e, "name")?;
