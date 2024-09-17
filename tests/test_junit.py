@@ -218,7 +218,7 @@ tests/test_parsers.py:16: AssertionError""",
                         ),
                         Testrun(
                             "test2",
-                            "class.className",
+                            "",
                             0.1,
                             Outcome.Pass,
                             "Thing",
