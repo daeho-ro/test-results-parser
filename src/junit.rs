@@ -55,10 +55,7 @@ fn populate(
     testsuite: String,
     testsuite_time: Option<String>,
 ) -> PyResult<Testrun> {
-    let classname = match rel_attrs.classname {
-        None => "".to_string(),
-        Some(x) => x,
-    };
+    let classname = rel_attrs.classname.unwrap_or_default();
 
     let name = rel_attrs
         .name
