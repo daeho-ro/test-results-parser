@@ -76,6 +76,7 @@ fn populate(
         testsuite,
         failure_message: None,
         filename: rel_attrs.file,
+        build_url: None,
     })
 }
 
