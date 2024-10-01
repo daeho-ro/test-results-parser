@@ -2,7 +2,7 @@
 | Tests completed | Failed | Passed | Skipped |
 |---|---|---|---|
 | {{ num_tests }} | {{ num_failed }} | {{ num_passed }} | {{ num_skipped}} |
-<details><summary>View the top {{ num_output }} failed tests by shortest run time</summary>
+<details><summary>View the top {{ failures.len() }} failed tests by shortest run time</summary>
 {% for failure in failures %}
 > 
 > ```
@@ -13,8 +13,8 @@
 > 
 > > {{ failure.backticks }}{% for stack_trace_line in failure.stack_trace %}
 > > {{ stack_trace_line }}{% endfor %}
-> > {{ failure.backticks }}{% if failure.build_url %}
-> > [View]({{ failure.build_url }}) the CI Build{% endif %}
+> > {{ failure.backticks }}{% match failure.build_url %}{% when Some with (build_url) %}
+> > [View]({{ build_url }}) the CI Build{% when None %}{% endmatch %}
 > 
 > </details>
 

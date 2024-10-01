@@ -2,8 +2,7 @@ use std::{cmp::max, sync::OnceLock};
 
 use pyo3::prelude::*;
 use regex::Regex;
-use serde::Serialize;
-use tera::{Context, Tera};
+use rinja::Template;
 
 
 #[pyfunction]
@@ -65,7 +64,6 @@ pub fn shorten_file_paths(failure_message: &str) -> String {
 #[derive(FromPyObject, Debug, Clone)]
 pub struct Failure {
     name: String,
-    testsuite: String,
     failure_message: Option<String>,
     duration: f64,
     build_url: Option<String>,
@@ -78,32 +76,17 @@ pub struct MessagePayload {
     failures: Vec<Failure>,
 }
 
-#[derive(Serialize)]
+
+#[derive(Template)]
+#[template(path = "test_results_message.md")] 
 struct TemplateContext {
     num_tests: i32,
     num_failed: i32,
     num_passed: i32,
     num_skipped: i32,
-    num_output: i32,
-    failures: Vec<TemplateFailure>,
+    failures:Vec<TemplateFailure>,
 }
-
-impl TemplateContext {
-    fn new(
-        num_tests: i32,
-        num_failed: i32,
-        num_passed: i32,
-        num_skipped: i32,
-        failures: Vec<TemplateFailure>,
-    ) -> Self {
-        let num_output: i32 = failures.len().try_into().unwrap();
-        Self { num_tests, num_failed, num_passed, num_skipped, num_output, failures }
-    }
-}
-
-#[derive(Serialize)]
 struct TemplateFailure {
-    test_suite: String,
     test_name: String,
     duration: String,
     backticks: String,
@@ -111,22 +94,49 @@ struct TemplateFailure {
     stack_trace: Vec<String>,
 }
 
-impl TemplateFailure {
-    fn new(
-        test_suite: String, 
-        test_name: String, 
-        duration: String, 
-        raw_num_backticks: usize, 
-        build_url: Option<String>,
-        stack_trace: Vec<String>
-    ) -> Self {
-        let num_backticks = max(raw_num_backticks + 1, 3);
+#[pyfunction]
+pub fn build_message(mut payload: MessagePayload) -> String {
+    let failed: i32 = payload.failed;
+    let passed: i32 = payload.passed;
+    let skipped: i32 = payload.skipped;
+
+    let completed = failed + passed + skipped;
+
+    payload.failures.sort_by(|a, b| a.duration.partial_cmp(&b.duration).unwrap());
+    let template_failures= payload.failures.into_iter().take(3).map(|failure| {
+        let failure_message = failure.failure_message
+            .as_ref()
+            .map(|s| s.as_str())
+            .unwrap_or("No failure message available");
+        let stack_trace: Vec<String> = failure_message
+            .split('\n')
+            .map(escape_message)
+            .collect();
+
+        let num_backticks: usize = max(longest_repeated_substring(failure_message, '`') + 1, 3); 
         let backticks = String::from("`".repeat(num_backticks));
-        Self { test_suite, test_name, duration, backticks, build_url, stack_trace }
-    }
+
+        TemplateFailure { 
+            test_name: failure.name.clone(), 
+            duration: format!("{:.3}", failure.duration), 
+            backticks, 
+            build_url: failure.build_url.clone(), 
+            stack_trace,
+        }
+    }).collect();
+
+    let template_context = TemplateContext {
+        num_tests: completed, 
+        num_failed: failed, 
+        num_passed: passed, 
+        num_skipped: skipped, 
+        failures: template_failures, 
+    };
+    
+    template_context.render().unwrap()
 }
 
-fn longest_repeated_substring(s: String, target: char) -> usize {
+fn longest_repeated_substring(s: &str, target: char) -> usize {
     let mut max_length = 0;
     let mut current_length = 0;
 
@@ -140,50 +150,4 @@ fn longest_repeated_substring(s: String, target: char) -> usize {
     }
 
     max_length
-}
-
-#[pyfunction]
-pub fn build_message(payload: MessagePayload) -> String {
-    let tera = Tera::new("templates/**/*").unwrap();
-    let failed: i32 = payload.failed;
-    let passed: i32 = payload.passed;
-    let skipped: i32 = payload.skipped;
-
-    let completed = failed + passed + skipped;
-
-    let mut sorted_failures: Vec<Failure> = payload.failures.to_vec();
-    sorted_failures.sort_by(|a, b| a.duration.partial_cmp(&b.duration).unwrap());
-
-    let mut template_failures: Vec<TemplateFailure> = Vec::new();
-    sorted_failures.truncate(3);
-    for failure in sorted_failures.iter_mut() {
-        let failure_message = match failure.failure_message.as_ref() {
-            Some(x) => String::from(x),
-            _ => String::from("No failure message available"),
-        };
-        let stack_trace_lines: Vec<String> = failure_message
-            .split('\n')
-            .map(|s| escape_message(s).to_string())
-            .collect();
-        let num_backticks: usize = longest_repeated_substring(failure_message, '`'); 
-        let temp: TemplateFailure = TemplateFailure::new(
-            failure.testsuite.clone(),
-            failure.name.clone(), 
-            format!("{:.3}", failure.duration),
-            num_backticks,
-            failure.build_url.clone(),
-            stack_trace_lines,
-        );
-        template_failures.push(temp);
-    };
-
-    let template_context = TemplateContext::new(
-        completed, failed, passed, skipped, template_failures,
-    );
-    
-    let message = tera.render(
-        "test_results_message.md", 
-        &Context::from_serialize(&template_context).unwrap())
-        .unwrap();
-    message
 }
