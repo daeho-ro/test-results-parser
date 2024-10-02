@@ -116,10 +116,10 @@ pub fn build_message(mut payload: MessagePayload) -> String {
             let backticks = "`".repeat(num_backticks);
 
             TemplateFailure {
-                test_name: failure.name.clone(),
+                test_name: failure.name,
                 duration: format!("{:.3}", failure.duration),
                 backticks,
-                build_url: failure.build_url.clone(),
+                build_url: failure.build_url,
                 stack_trace,
             }
         })
