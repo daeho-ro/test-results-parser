@@ -4,7 +4,6 @@ use pyo3::prelude::*;
 use regex::Regex;
 use rinja::Template;
 
-
 #[pyfunction]
 /// Escapes characters that will break Markdown Templating.
 pub fn escape_message(failure_message: &str) -> String {
@@ -74,15 +73,14 @@ pub struct MessagePayload {
     failures: Vec<Failure>,
 }
 
-
 #[derive(Template)]
-#[template(path = "test_results_message.md")] 
+#[template(path = "test_results_message.md")]
 struct TemplateContext {
     num_tests: i32,
     num_failed: i32,
     num_passed: i32,
     num_skipped: i32,
-    failures:Vec<TemplateFailure>,
+    failures: Vec<TemplateFailure>,
 }
 struct TemplateFailure {
     test_name: String,
@@ -100,37 +98,43 @@ pub fn build_message(mut payload: MessagePayload) -> String {
 
     let completed = failed + passed + skipped;
 
-    payload.failures.sort_by(|a, b| a.duration.partial_cmp(&b.duration).unwrap());
-    let template_failures= payload.failures.into_iter().take(3).map(|failure| {
-        let failure_message = failure.failure_message
-            .as_ref()
-            .map(|s| s.as_str())
-            .unwrap_or("No failure message available");
-        let stack_trace: Vec<String> = failure_message
-            .split('\n')
-            .map(escape_message)
-            .collect();
+    payload
+        .failures
+        .sort_by(|a, b| a.duration.partial_cmp(&b.duration).unwrap());
+    let template_failures = payload
+        .failures
+        .into_iter()
+        .take(3)
+        .map(|failure| {
+            let failure_message = failure
+                .failure_message
+                .as_ref()
+                .map(|s| s.as_str())
+                .unwrap_or("No failure message available");
+            let stack_trace: Vec<String> =
+                failure_message.split('\n').map(escape_message).collect();
 
-        let num_backticks: usize = max(longest_repeated_substring(failure_message, '`') + 1, 3); 
-        let backticks = String::from("`".repeat(num_backticks));
+            let num_backticks: usize = max(longest_repeated_substring(failure_message, '`') + 1, 3);
+            let backticks = String::from("`".repeat(num_backticks));
 
-        TemplateFailure { 
-            test_name: failure.name.clone(), 
-            duration: format!("{:.3}", failure.duration), 
-            backticks, 
-            build_url: failure.build_url.clone(), 
-            stack_trace,
-        }
-    }).collect();
+            TemplateFailure {
+                test_name: failure.name.clone(),
+                duration: format!("{:.3}", failure.duration),
+                backticks,
+                build_url: failure.build_url.clone(),
+                stack_trace,
+            }
+        })
+        .collect();
 
     let template_context = TemplateContext {
-        num_tests: completed, 
-        num_failed: failed, 
-        num_passed: passed, 
-        num_skipped: skipped, 
-        failures: template_failures, 
+        num_tests: completed,
+        num_failed: failed,
+        num_passed: passed,
+        num_skipped: skipped,
+        failures: template_failures,
     };
-    
+
     template_context.render().unwrap()
 }
 

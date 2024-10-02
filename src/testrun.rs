@@ -152,7 +152,7 @@ impl Testrun {
         testsuite: String,
         failure_message: Option<String>,
         filename: Option<String>,
-        build_url: Option<String>
+        build_url: Option<String>,
     ) -> Self {
         Self {
             name,
