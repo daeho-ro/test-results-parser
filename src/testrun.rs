@@ -92,6 +92,8 @@ pub struct Testrun {
     pub failure_message: Option<String>,
     #[pyo3(get, set)]
     pub filename: Option<String>,
+    #[pyo3(get, set)]
+    pub build_url: Option<String>,
 }
 
 impl Testrun {
@@ -104,17 +106,18 @@ impl Testrun {
             testsuite: "".into(),
             failure_message: None,
             filename: None,
+            build_url: None,
         }
     }
 
-    pub fn framework(self: &Self) -> Option<Framework> {
-        for (name, framework) in &*FRAMEWORKS {
+    pub fn framework(&self) -> Option<Framework> {
+        for (name, framework) in FRAMEWORKS {
             if check_substring_before_word_boundary(&self.testsuite, name) {
                 return Some(framework.to_owned());
             }
         }
 
-        for (extension, framework) in &*EXTENSIONS {
+        for (extension, framework) in EXTENSIONS {
             if check_substring_before_word_boundary(&self.classname, extension)
                 || check_substring_before_word_boundary(&self.name, extension)
             {
@@ -122,13 +125,13 @@ impl Testrun {
             }
 
             if let Some(message) = &self.failure_message {
-                if check_substring_before_word_boundary(&message, extension) {
+                if check_substring_before_word_boundary(message, extension) {
                     return Some(framework.to_owned());
                 }
             }
 
             if let Some(filename) = &self.filename {
-                if check_substring_before_word_boundary(&filename, extension) {
+                if check_substring_before_word_boundary(filename, extension) {
                     return Some(framework.to_owned());
                 }
             }
@@ -140,7 +143,7 @@ impl Testrun {
 #[pymethods]
 impl Testrun {
     #[new]
-    #[pyo3(signature = (name, classname, duration, outcome, testsuite, failure_message=None, filename=None))]
+    #[pyo3(signature = (name, classname, duration, outcome, testsuite, failure_message=None, filename=None, build_url=None))]
     fn new(
         name: String,
         classname: String,
@@ -149,6 +152,7 @@ impl Testrun {
         testsuite: String,
         failure_message: Option<String>,
         filename: Option<String>,
+        build_url: Option<String>,
     ) -> Self {
         Self {
             name,
@@ -158,6 +162,7 @@ impl Testrun {
             testsuite,
             failure_message,
             filename,
+            build_url,
         }
     }
 
@@ -279,6 +284,7 @@ mod tests {
             testsuite: "pytest".to_string(),
             failure_message: None,
             filename: None,
+            build_url: None,
         };
         assert_eq!(t.framework(), Some(Framework::Pytest));
     }
@@ -293,6 +299,7 @@ mod tests {
             testsuite: "".to_string(),
             failure_message: None,
             filename: Some(".py".to_string()),
+            build_url: None,
         };
         assert_eq!(t.framework(), Some(Framework::Pytest));
     }
@@ -307,6 +314,7 @@ mod tests {
             testsuite: "".to_string(),
             failure_message: None,
             filename: None,
+            build_url: None,
         };
         assert_eq!(t.framework(), Some(Framework::Pytest));
     }
@@ -321,6 +329,7 @@ mod tests {
             testsuite: "".to_string(),
             failure_message: None,
             filename: None,
+            build_url: None,
         };
         assert_eq!(t.framework(), Some(Framework::Pytest));
     }
@@ -335,6 +344,22 @@ mod tests {
             testsuite: "".to_string(),
             failure_message: Some(".py".to_string()),
             filename: None,
+            build_url: None,
+        };
+        assert_eq!(t.framework(), Some(Framework::Pytest));
+    }
+
+    #[test]
+    fn test_detect_build_url() {
+        let t = Testrun {
+            classname: "".to_string(),
+            name: "".to_string(),
+            duration: 0.0,
+            outcome: Outcome::Pass,
+            testsuite: "".to_string(),
+            failure_message: Some(".py".to_string()),
+            filename: None,
+            build_url: Some("https://example.com/build_url".to_string()),
         };
         assert_eq!(t.framework(), Some(Framework::Pytest));
     }

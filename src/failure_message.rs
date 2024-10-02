@@ -1,20 +1,16 @@
-use std::sync::OnceLock;
+use std::{cmp::max, sync::OnceLock};
 
 use pyo3::prelude::*;
 use regex::Regex;
+use rinja::Template;
 
 #[pyfunction]
-pub fn escape_failure_message(failure_message: &str) -> String {
+/// Escapes characters that will break Markdown Templating.
+pub fn escape_message(failure_message: &str) -> String {
     let mut e = String::new();
     for c in failure_message.chars() {
         match c {
-            '\"' => e.push_str("&quot;"),
-            '\'' => e.push_str("&apos;"),
-            '<' => e.push_str("&lt;"),
-            '>' => e.push_str("&gt;"),
-            '&' => e.push_str("&amp;"),
             '\r' => {}
-            '\n' => e.push_str("<br>"),
             c => e.push(c),
         }
     }
@@ -62,11 +58,12 @@ pub fn shorten_file_paths(failure_message: &str) -> String {
     new
 }
 
-#[derive(FromPyObject, Debug)]
+#[derive(FromPyObject, Debug, Clone)]
 pub struct Failure {
     name: String,
-    testsuite: String,
     failure_message: Option<String>,
+    duration: f64,
+    build_url: Option<String>,
 }
 #[derive(FromPyObject, Debug)]
 pub struct MessagePayload {
@@ -76,40 +73,81 @@ pub struct MessagePayload {
     failures: Vec<Failure>,
 }
 
-#[pyfunction]
-pub fn build_message(payload: MessagePayload) -> String {
-    use std::fmt::Write;
-    let mut message = String::from("### :x: Failed Test Results:\n");
+#[derive(Template)]
+#[template(path = "test_results_message.md")]
+struct TemplateContext {
+    num_tests: i32,
+    num_failed: i32,
+    num_passed: i32,
+    num_skipped: i32,
+    failures: Vec<TemplateFailure>,
+}
+struct TemplateFailure {
+    test_name: String,
+    duration: String,
+    backticks: String,
+    build_url: Option<String>,
+    stack_trace: Vec<String>,
+}
 
+#[pyfunction]
+pub fn build_message(mut payload: MessagePayload) -> String {
     let failed: i32 = payload.failed;
     let passed: i32 = payload.passed;
     let skipped: i32 = payload.skipped;
 
     let completed = failed + passed + skipped;
-    writeln!(&mut message, "Completed {completed} tests with **`{failed} failed`**, {passed} passed and {skipped} skipped.").unwrap();
-    message.push_str("<details><summary>View the full list of failed tests</summary>\n\n");
-    message.push_str("| **Test Description** | **Failure message** |\n");
-    message.push_str("| :-- | :-- |\n");
 
-    for (idx, fail) in payload.failures.into_iter().enumerate() {
-        if idx != 0 {
-            message.push('\n');
-        }
-        message.push_str("| <pre>");
-        write!(
-            &mut message,
-            "Testsuite:<br>{}<br><br>Test name:<br>{}<br>",
-            fail.testsuite, fail.name
-        )
-        .unwrap();
-        message.push_str("</pre> | <pre>");
+    payload
+        .failures
+        .sort_by(|a, b| a.duration.partial_cmp(&b.duration).unwrap());
+    let template_failures = payload
+        .failures
+        .into_iter()
+        .take(3)
+        .map(|failure| {
+            let failure_message = failure
+                .failure_message.as_deref()
+                .unwrap_or("No failure message available");
+            let stack_trace: Vec<String> =
+                failure_message.split('\n').map(escape_message).collect();
 
-        match fail.failure_message {
-            None => message.push_str("No failure message available"),
-            Some(x) => message.push_str(&escape_failure_message(&shorten_file_paths(&x))),
+            let num_backticks: usize = max(longest_repeated_substring(failure_message, '`') + 1, 3);
+            let backticks = "`".repeat(num_backticks);
+
+            TemplateFailure {
+                test_name: failure.name,
+                duration: format!("{:.3}", failure.duration),
+                backticks,
+                build_url: failure.build_url,
+                stack_trace,
+            }
+        })
+        .collect();
+
+    let template_context = TemplateContext {
+        num_tests: completed,
+        num_failed: failed,
+        num_passed: passed,
+        num_skipped: skipped,
+        failures: template_failures,
+    };
+
+    template_context.render().unwrap()
+}
+
+fn longest_repeated_substring(s: &str, target: char) -> usize {
+    let mut max_length = 0;
+    let mut current_length = 0;
+
+    for c in s.chars() {
+        if c == target {
+            current_length += 1;
+            max_length = max_length.max(current_length);
+        } else {
+            current_length = 0; // Reset when the character doesn't match
         }
-        message.push_str("</pre> |");
     }
 
-    message
+    max_length
 }

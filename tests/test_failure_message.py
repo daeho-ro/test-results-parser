@@ -1,12 +1,6 @@
 from dataclasses import dataclass
-from test_results_parser import escape_failure_message, shorten_file_paths, build_message
+from test_results_parser import build_message, shorten_file_paths
 
-def test_escape_failure_message():
-    with open('./tests/windows.junit.xml') as f:
-        failure_message = f.read()
-    res = escape_failure_message(failure_message)
-
-    assert res == """Error: expect(received).toBe(expected) // Object.is equality<br><br>Expected: 4<br>Received: 5<br>at Object.&amp;lt;anonymous&amp;gt;<br>(/Users/user/dev/repo/demo/calculator/calculator.test.ts:5:26)<br>at Promise.then.completed<br>(/Users/user/dev/repo/node_modules/jest-circus/build/utils.js:298:28)<br>at new Promise (&amp;lt;anonymous&amp;gt;)<br>at callAsyncCircusFn<br>(/Users/user/dev/repo/node_modules/jest-circus/build/utils.js:231:10)<br>at _callCircusTest<br>(/Users/user/dev/repo/node_modules/jest-circus/build/run.js:316:40)<br>at processTicksAndRejections (node:internal/process/task_queues:95:5)<br>at _runTest<br>(/Users/user/dev/repo/node_modules/jest-circus/build/run.js:252:3)<br>at _runTestsForDescribeBlock<br>(/Users/user/dev/repo/node_modules/jest-circus/build/run.js:126:9)<br>at run<br>(/Users/user/dev/repo/node_modules/jest-circus/build/run.js:71:3)<br>at runAndTransformResultsToJestFormat<br>(/Users/user/dev/repo/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)<br>at jestAdapter<br>(/Users/user/dev/repo/node_modules/jest-circus/build/legacy-code-todo-rewrite/jestAdapter.js:79:19)<br>at runTestInternal<br>(/Users/user/dev/repo/node_modules/jest-runner/build/runTest.js:367:16)<br>at runTest<br>(/Users/user/dev/repo/node_modules/jest-runner/build/runTest.js:444:34)"""
 
 def test_shorten_file_paths():
     with open('./tests/windows.junit.xml') as f:
@@ -43,26 +37,6 @@ at runTestInternal
 at runTest
 (.../jest-runner/build/runTest.js:444:34)"""
 
-def test_shorten_and_escape_failure_message():
-    with open('./tests/windows.junit.xml') as f:
-        failure_message = f.read()
-
-    partial_res = shorten_file_paths(failure_message)
-    res = escape_failure_message(partial_res)
-
-    assert res == """Error: expect(received).toBe(expected) // Object.is equality<br><br>Expected: 4<br>Received: 5<br>at Object.&amp;lt;anonymous&amp;gt;<br>(.../demo/calculator/calculator.test.ts:5:26)<br>at Promise.then.completed<br>(.../jest-circus/build/utils.js:298:28)<br>at new Promise (&amp;lt;anonymous&amp;gt;)<br>at callAsyncCircusFn<br>(.../jest-circus/build/utils.js:231:10)<br>at _callCircusTest<br>(.../jest-circus/build/run.js:316:40)<br>at processTicksAndRejections (node:internal/process/task_queues:95:5)<br>at _runTest<br>(.../jest-circus/build/run.js:252:3)<br>at _runTestsForDescribeBlock<br>(.../jest-circus/build/run.js:126:9)<br>at run<br>(.../jest-circus/build/run.js:71:3)<br>at runAndTransformResultsToJestFormat<br>(.../build/legacy-code-todo-rewrite/jestAdapterInit.js:122:21)<br>at jestAdapter<br>(.../build/legacy-code-todo-rewrite/jestAdapter.js:79:19)<br>at runTestInternal<br>(.../jest-runner/build/runTest.js:367:16)<br>at runTest<br>(.../jest-runner/build/runTest.js:444:34)"""
-
-
-def test_escape_failure_message_happy_path():
-    failure_message = "\"'<>&\r\n"
-    res = escape_failure_message(failure_message)
-    assert res == "&quot;&apos;&lt;&gt;&amp;<br>"
-
-def test_escape_failure_message_slash_in_message():
-    failure_message = "\\ \\n \n"
-    res = escape_failure_message(failure_message)
-    assert res == "\\ \\n <br>"
-
 def test_shorten_file_paths_short_path():
     failure_message = "short/file/path.txt"
     res = shorten_file_paths(failure_message)
@@ -91,32 +65,99 @@ def test_build_message():
         name = ""
         testsuite = ""
         failure_message = ""
+        duration = 0.0
 
     run1 = Run()
     run2 = Run()
+    run3 = Run()
+    run4 = Run()
 
     run1.testsuite = "hello"
-    run1.name = "world"
-    run1.failure_message = "I failed"
-
+    run1.name = "test_name_run1"
+    run1.failure_message = "Shared \n\n\n\n <pre> ````````\n \r\n\r\n | test | test | test </pre>failure message"
+    run1.duration = 0.098
+    run1.build_url = None
 
     run2.testsuite = "hello"
-    run2.name = "again"
+    run2.name = "test_name_run2"
     run2.failure_message = None
+    run2.duration = 0.07
+    run2.build_url = "https://example.com/build"
+
+    run3.testsuite = "hello"
+    run3.name = "don't show; too slow"
+    run3.failure_message = None
+    run3.duration = 0.101
+    run3.build_url = "https://example.com/build_no_show"
+
+    run4.testsuite = "hello"
+    run4.name = "test_name_run4"
+    run4.failure_message = "This is the fastest run"
+    run4.duration = 0.001
+    run4.build_url = "https://example.com/build_fast"
 
     payload = Thing()
     payload.passed = 1
-    payload.failed = 2
+    payload.failed = 4
     payload.skipped = 3
-    payload.failures = [run1, run2]
+    payload.failures = [run1, run2, run3, run4]
 
     res = build_message(payload)
 
-    assert res == """### :x: Failed Test Results:
-Completed 6 tests with **`2 failed`**, 1 passed and 3 skipped.
-<details><summary>View the full list of failed tests</summary>
+    assert res == """### :x: 4 Tests Failed:
+| Tests completed | Failed | Passed | Skipped |
+|---|---|---|---|
+| 8 | 4 | 1 | 3 |
+<details><summary>View the top 3 failed tests by shortest run time</summary>
 
-| **Test Description** | **Failure message** |
-| :-- | :-- |
-| <pre>Testsuite:<br>hello<br><br>Test name:<br>world<br></pre> | <pre>I failed</pre> |
-| <pre>Testsuite:<br>hello<br><br>Test name:<br>again<br></pre> | <pre>No failure message available</pre> |"""
+> 
+> ```
+> test_name_run4
+> ```
+> 
+> <details><summary>Stack Traces | 0.001s run time</summary>
+> 
+> > ```
+> > This is the fastest run
+> > ```
+> > [View](https://example.com/build_fast) the CI Build
+> 
+> </details>
+
+
+> 
+> ```
+> test_name_run2
+> ```
+> 
+> <details><summary>Stack Traces | 0.070s run time</summary>
+> 
+> > ```
+> > No failure message available
+> > ```
+> > [View](https://example.com/build) the CI Build
+> 
+> </details>
+
+
+> 
+> ```
+> test_name_run1
+> ```
+> 
+> <details><summary>Stack Traces | 0.098s run time</summary>
+> 
+> > `````````
+> > Shared 
+> > 
+> > 
+> > 
+> >  <pre> ````````
+> >  
+> > 
+> >  | test | test | test </pre>failure message
+> > `````````
+> 
+> </details>
+
+"""

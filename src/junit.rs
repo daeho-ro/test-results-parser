@@ -76,6 +76,7 @@ fn populate(
         testsuite,
         failure_message: None,
         filename: rel_attrs.file,
+        build_url: None,
     })
 }
 
@@ -198,7 +199,7 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                     xml_failure_message.inplace_trim_start();
 
                     testrun.failure_message =
-                        Some(String::from_utf8(xml_failure_message.as_ref().to_vec())?);
+                        Some(String::from_utf8(xml_failure_message.to_vec())?);
                 }
             }
 
