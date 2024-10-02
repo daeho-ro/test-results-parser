@@ -107,7 +107,8 @@ pub fn build_message(mut payload: MessagePayload) -> String {
         .take(3)
         .map(|failure| {
             let failure_message = failure
-                .failure_message.as_deref()
+                .failure_message
+                .as_deref()
                 .unwrap_or("No failure message available");
             let stack_trace: Vec<String> =
                 failure_message.split('\n').map(escape_message).collect();
