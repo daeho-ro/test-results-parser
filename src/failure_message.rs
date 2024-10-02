@@ -6,10 +6,8 @@ use rinja::Template;
 
 
 #[pyfunction]
+/// Escapes characters that will break Markdown Templating.
 pub fn escape_message(failure_message: &str) -> String {
-    /* 
-    Escapes characters that will break Markdown Templating.
-     */
     let mut e = String::new();
     for c in failure_message.chars() {
         match c {
