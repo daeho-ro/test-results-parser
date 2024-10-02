@@ -110,14 +110,14 @@ impl Testrun {
         }
     }
 
-    pub fn framework(self: &Self) -> Option<Framework> {
-        for (name, framework) in &*FRAMEWORKS {
+    pub fn framework(&self) -> Option<Framework> {
+        for (name, framework) in FRAMEWORKS {
             if check_substring_before_word_boundary(&self.testsuite, name) {
                 return Some(framework.to_owned());
             }
         }
 
-        for (extension, framework) in &*EXTENSIONS {
+        for (extension, framework) in EXTENSIONS {
             if check_substring_before_word_boundary(&self.classname, extension)
                 || check_substring_before_word_boundary(&self.name, extension)
             {
@@ -125,13 +125,13 @@ impl Testrun {
             }
 
             if let Some(message) = &self.failure_message {
-                if check_substring_before_word_boundary(&message, extension) {
+                if check_substring_before_word_boundary(message, extension) {
                     return Some(framework.to_owned());
                 }
             }
 
             if let Some(filename) = &self.filename {
-                if check_substring_before_word_boundary(&filename, extension) {
+                if check_substring_before_word_boundary(filename, extension) {
                     return Some(framework.to_owned());
                 }
             }
