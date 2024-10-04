@@ -2,6 +2,21 @@ from dataclasses import dataclass
 from test_results_parser import build_message, shorten_file_paths
 
 
+@dataclass
+class Thing:
+    failed = 0
+    passed = 0
+    skipped = 0
+    failures = []
+
+@dataclass
+class Run:
+    name = ""
+    testsuite = ""
+    failure_message = ""
+    duration = 0.0 
+
+
 def test_shorten_file_paths():
     with open('./tests/windows.junit.xml') as f:
         failure_message = f.read()
@@ -52,21 +67,15 @@ def test_shorten_file_paths_long_path_leading_slash():
     res = shorten_file_paths(failure_message)
     assert res == ".../should/be/shortened.txt"
 
+def test_build_message_no_failures():
+    payload = Thing()
+    res = build_message(payload)
+
+    assert res == """:white_check_mark: All tests successful. No failed tests were found.
+:mega: Thoughts on this report? [Let Codecov know!](https://github.com/codecov/feedback/issues/304) | Powered by [Codecov](https://about.codecov.io/)"""
+
+
 def test_build_message():
-    @dataclass
-    class Thing:
-        failed = 0
-        passed = 0
-        skipped = 0
-        failures = []
-
-    @dataclass
-    class Run:
-        name = ""
-        testsuite = ""
-        failure_message = ""
-        duration = 0.0
-
     run1 = Run()
     run2 = Run()
     run3 = Run()
@@ -160,4 +169,6 @@ def test_build_message():
 > 
 > </details>
 
-"""
+
+</details>
+:mega: Thoughts on this report? [Let Codecov know!](https://github.com/codecov/feedback/issues/304) | Powered by [Codecov](https://about.codecov.io/)"""
