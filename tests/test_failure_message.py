@@ -3,7 +3,7 @@ from test_results_parser import build_message, shorten_file_paths
 
 
 @dataclass
-class Thing:
+class TestRunsPayload:
     failed = 0
     passed = 0
     skipped = 0
@@ -68,7 +68,7 @@ def test_shorten_file_paths_long_path_leading_slash():
     assert res == ".../should/be/shortened.txt"
 
 def test_build_message_no_failures():
-    payload = Thing()
+    payload = TestRunsPayload()
     res = build_message(payload)
 
     assert res == """:white_check_mark: All tests successful. No failed tests were found.
@@ -105,7 +105,7 @@ def test_build_message():
     run4.duration = 0.001
     run4.build_url = "https://example.com/build_fast"
 
-    payload = Thing()
+    payload = TestRunsPayload()
     payload.passed = 1
     payload.failed = 4
     payload.skipped = 3
