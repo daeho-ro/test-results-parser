@@ -1,4 +1,4 @@
-### :x: {{ num_failed }} Tests Failed:
+{% if num_failed > 1 %}### :x: {{ num_failed }} Tests Failed:
 | Tests completed | Failed | Passed | Skipped |
 |---|---|---|---|
 | {{ num_tests }} | {{ num_failed }} | {{ num_passed }} | {{ num_skipped}} |
@@ -19,3 +19,5 @@
 > </details>
 
 {% endfor %}
+</details>{% else %}:white_check_mark: All tests successful. No failed tests were found.{% endif %}
+:mega: Thoughts on this report? [Let Codecov know!](https://github.com/codecov/feedback/issues/304) | Powered by [Codecov](https://about.codecov.io/)
