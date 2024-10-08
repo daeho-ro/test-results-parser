@@ -477,7 +477,7 @@ checksum = "4873307b7c257eddcb50c9bedf158eb669578359fb28428bef438fec8e6ba7c2"
 
 [[package]]
 name = "test_results_parser"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "pyo3",
  "quick-xml",
