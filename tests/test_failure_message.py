@@ -72,6 +72,7 @@ def test_build_message_no_failures():
     res = build_message(payload)
 
     assert res == """:white_check_mark: All tests successful. No failed tests were found.
+
 :mega: Thoughts on this report? [Let Codecov know!](https://github.com/codecov/feedback/issues/304) | Powered by [Codecov](https://about.codecov.io/)"""
 
 
@@ -171,4 +172,5 @@ def test_build_message():
 
 
 </details>
+
 :mega: Thoughts on this report? [Let Codecov know!](https://github.com/codecov/feedback/issues/304) | Powered by [Codecov](https://about.codecov.io/)"""
