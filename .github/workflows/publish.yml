@@ -59,7 +59,7 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-alpine--${{ matrix.target }}
+          name: wheels-alpine-${{ matrix.target }}
           path: dist
 
   windows:
@@ -135,4 +135,4 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: upload
-          args: --non-interactive --skip-existing *
+          args: --non-interactive --skip-existing wheels-*/*
