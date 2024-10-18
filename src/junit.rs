@@ -173,8 +173,8 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                 }
                 _ => (),
             },
-            Event::Empty(e) => {
-                if e.name().as_ref() == b"testcase" {
+            Event::Empty(e) => match e.name().as_ref() {
+                b"testcase" => {
                     let rel_attrs = get_relevant_attrs(e.attributes())?;
                     let testrun = populate(
                         rel_attrs,
@@ -187,7 +187,16 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                     )?;
                     testruns.push(testrun);
                 }
-            }
+                b"failure" => {
+                    let testrun = saved_testrun
+                        .as_mut()
+                        .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
+                    testrun.outcome = Outcome::Failure;
+
+                    testrun.failure_message = get_attribute(&e, "message")?;
+                }
+                _ => {}
+            },
             Event::Text(x) => {
                 if in_failure {
                     let testrun = saved_testrun

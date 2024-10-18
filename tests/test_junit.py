@@ -228,6 +228,23 @@ tests/test_parsers.py:16: AssertionError""",
                     ],
                 ),
             ),
+            (
+                "./tests/ctest.xml",
+                ParsingInfo(
+                    None,
+                    [
+                        Testrun(
+                            "a_unit_test",
+                            "a_unit_test",
+                            33.4734,
+                            Outcome.Failure,
+                            "Linux-c++",
+                            "Failed",
+                            None,
+                        )
+                    ],
+                ),
+            ),
         ],
     )
     def test_junit(self, filename, expected):
