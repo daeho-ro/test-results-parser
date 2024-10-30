@@ -121,8 +121,8 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                             .iter()
                             .rev()
                             .find_map(|e| e.clone())
-                            .clone()
-                            .ok_or_else(|| ParserError::new_err("No testsuite name found"))?,
+                            .or_else(|| Some(String::new()))
+                            .unwrap(),
                         testsuite_time.iter().rev().find_map(|e| e.clone()),
                     )?);
                 }
@@ -182,7 +182,8 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                             .last()
                             .unwrap()
                             .to_owned()
-                            .ok_or_else(|| ParserError::new_err("No testsuite name found"))?,
+                            .or_else(|| Some(String::new()))
+                            .unwrap(),
                         testsuite_time.last().unwrap().to_owned(),
                     )?;
                     testruns.push(testrun);
