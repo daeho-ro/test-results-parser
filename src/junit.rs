@@ -122,7 +122,7 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                             .rev()
                             .find_map(|e| e.clone())
                             .or_else(|| Some(String::new()))
-                            .unwrap(),
+                            .unwrap_or_default(),
                         testsuite_time.iter().rev().find_map(|e| e.clone()),
                     )?);
                 }
@@ -179,12 +179,12 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                     let testrun = populate(
                         rel_attrs,
                         testsuite_names
-                            .last()
-                            .unwrap()
-                            .to_owned()
+                            .iter()
+                            .rev()
+                            .find_map(|e| e.clone())
                             .or_else(|| Some(String::new()))
-                            .unwrap(),
-                        testsuite_time.last().unwrap().to_owned(),
+                            .unwrap_or_default(),
+                        testsuite_time.iter().rev().find_map(|e| e.clone()),
                     )?;
                     testruns.push(testrun);
                 }
