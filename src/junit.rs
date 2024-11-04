@@ -1,10 +1,14 @@
+use std::borrow::Cow;
+
 use pyo3::prelude::*;
 
+use quick_xml::escape::unescape;
 use quick_xml::events::attributes::Attributes;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::reader::Reader;
 
-use crate::testrun::{check_testsuites_name, Outcome, ParsingInfo, Testrun};
+use crate::compute_name::compute_name;
+use crate::testrun::{check_testsuites_name, Framework, Outcome, ParsingInfo, Testrun};
 use crate::ParserError;
 
 struct RelevantAttrs {
@@ -54,7 +58,8 @@ fn populate(
     rel_attrs: RelevantAttrs,
     testsuite: String,
     testsuite_time: Option<String>,
-) -> PyResult<Testrun> {
+    mut framework: Option<Framework>,
+) -> PyResult<(Testrun, Option<Framework>)> {
     let classname = rel_attrs.classname.unwrap_or_default();
 
     let name = rel_attrs
@@ -68,7 +73,7 @@ fn populate(
         Some(time_str) => time_str.parse()?,
     };
 
-    Ok(Testrun {
+    let mut t = Testrun {
         name,
         classname,
         duration,
@@ -77,7 +82,36 @@ fn populate(
         failure_message: None,
         filename: rel_attrs.file,
         build_url: None,
-    })
+        computed_name: None,
+    };
+
+    match framework {
+        None => {
+            if let Some(f) = t.framework() {
+                framework = Some(f);
+                let computed_name = compute_name(
+                    &t.classname,
+                    &t.name,
+                    &f,
+                    t.filename.as_ref().map(|s| s.as_str()),
+                );
+                t.computed_name = Some(computed_name);
+            };
+        }
+        Some(f) => {
+            let computed_name = compute_name(
+                &t.classname,
+                &t.name,
+                &f,
+                t.filename.as_ref().map(|s| s.as_str()),
+            );
+            t.computed_name = Some(computed_name);
+        }
+    }
+
+    println!("t: {:?}", t);
+
+    Ok((t, framework))
 }
 
 #[pyfunction]
@@ -92,7 +126,7 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
 
     let mut buf = Vec::new();
 
-    let mut testsuites_name: Option<String> = None;
+    let mut framework: Option<Framework> = None;
 
     // every time we come across a testsuite element we update this vector:
     // if the testsuite element contains the time attribute append its value to this vec
@@ -115,7 +149,7 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
             Event::Start(e) => match e.name().as_ref() {
                 b"testcase" => {
                     let rel_attrs = get_relevant_attrs(e.attributes())?;
-                    saved_testrun = Some(populate(
+                    let (testrun, parsed_framework) = populate(
                         rel_attrs,
                         testsuite_names
                             .iter()
@@ -124,7 +158,11 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                             .or_else(|| Some(String::new()))
                             .unwrap_or_default(),
                         testsuite_time.iter().rev().find_map(|e| e.clone()),
-                    )?);
+                        framework,
+                    )?;
+                    saved_testrun = Some(testrun);
+                    framework = parsed_framework;
+                    println!("testrun: {:?}", saved_testrun);
                 }
                 b"skipped" => {
                     let testrun = saved_testrun
@@ -145,6 +183,14 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                     testrun.outcome = Outcome::Failure;
 
                     testrun.failure_message = get_attribute(&e, "message")?;
+
+                    if let Some(failure_message) = &testrun.failure_message {
+                        testrun.failure_message = Some(
+                            unescape(&failure_message)
+                                .unwrap_or(Cow::Borrowed(testrun.failure_message.as_ref().unwrap()))
+                                .to_string(),
+                        );
+                    }
                     in_failure = true;
                 }
                 b"testsuite" => {
@@ -152,7 +198,12 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                     testsuite_time.push(get_attribute(&e, "time")?);
                 }
                 b"testsuites" => {
-                    testsuites_name = get_attribute(&e, "name")?;
+                    let testsuites_name = get_attribute(&e, "name")?;
+                    framework = if let Some(name) = testsuites_name {
+                        check_testsuites_name(&name)
+                    } else {
+                        None
+                    };
                 }
                 _ => {}
             },
@@ -176,7 +227,7 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
             Event::Empty(e) => match e.name().as_ref() {
                 b"testcase" => {
                     let rel_attrs = get_relevant_attrs(e.attributes())?;
-                    let testrun = populate(
+                    let (testrun, parsed_framework) = populate(
                         rel_attrs,
                         testsuite_names
                             .iter()
@@ -185,8 +236,10 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                             .or_else(|| Some(String::new()))
                             .unwrap_or_default(),
                         testsuite_time.iter().rev().find_map(|e| e.clone()),
+                        framework,
                     )?;
                     testruns.push(testrun);
+                    framework = parsed_framework;
                 }
                 b"failure" => {
                     let testrun = saved_testrun
@@ -195,6 +248,14 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                     testrun.outcome = Outcome::Failure;
 
                     testrun.failure_message = get_attribute(&e, "message")?;
+
+                    if let Some(failure_message) = &testrun.failure_message {
+                        testrun.failure_message = Some(
+                            unescape(&failure_message)
+                                .unwrap_or(Cow::Borrowed(testrun.failure_message.as_ref().unwrap()))
+                                .to_string(),
+                        );
+                    }
                 }
                 _ => {}
             },
@@ -210,6 +271,14 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
 
                     testrun.failure_message =
                         Some(String::from_utf8(xml_failure_message.to_vec())?);
+
+                    if let Some(failure_message) = &testrun.failure_message {
+                        testrun.failure_message = Some(
+                            unescape(&failure_message)
+                                .unwrap_or(Cow::Borrowed(testrun.failure_message.as_ref().unwrap()))
+                                .to_string(),
+                        );
+                    }
                 }
             }
 
@@ -217,14 +286,6 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
             _ => (),
         }
         buf.clear()
-    }
-
-    let mut framework = testruns.iter().filter_map(|t| t.framework()).next();
-
-    if framework.is_none() {
-        if let Some(name) = testsuites_name {
-            framework = check_testsuites_name(&name);
-        }
     }
 
     Ok(ParsingInfo {

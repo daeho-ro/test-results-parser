@@ -1,5 +1,4 @@
-use crate::testrun::{Framework, Testrun};
-use crate::ComputeNameError;
+use crate::testrun::Framework;
 use pyo3::prelude::*;
 use quick_xml::escape::unescape;
 use std::borrow::Cow;
@@ -34,44 +33,27 @@ fn compute_phpunit(classname: &str, name: &str, _filename: Option<&str>) -> Stri
     format!("{}::{}", classname, name).to_string()
 }
 
-fn get_name<'a>(testrun: &'a Testrun) -> PyResult<Cow<'a, str>> {
-    unescape(&testrun.name)
-        .map_err(|e| ComputeNameError::new_err(format!("Failed to unescape name: {}", e)))
+fn unescape_str(s: &str) -> Cow<'_, str> {
+    unescape(s).unwrap_or_else(|_| Cow::Borrowed(s))
 }
 
-fn get_classname<'a>(testrun: &'a Testrun) -> PyResult<Cow<'a, str>> {
-    unescape(&testrun.classname)
-        .map_err(|e| ComputeNameError::new_err(format!("Failed to unescape classname: {}", e)))
-}
+#[pyfunction(signature = (classname, name, framework, filename=None))]
+pub fn compute_name(
+    classname: &str,
+    name: &str,
+    framework: &Framework,
+    filename: Option<&str>,
+) -> String {
+    let compute = match framework {
+        Framework::Jest => compute_jest,
+        Framework::Pytest => compute_pytest,
+        Framework::Vitest => compute_vitest,
+        Framework::PHPUnit => compute_phpunit,
+    };
 
-fn get_filename<'a>(testrun: &'a Testrun) -> PyResult<Option<Cow<'a, str>>> {
-    testrun
-        .filename
-        .as_ref()
-        .map(|filename| {
-            unescape(&filename).map_err(|e| {
-                ComputeNameError::new_err(format!("Failed to unescape filename: {}", e))
-            })
-        })
-        .transpose()
-}
+    let name = unescape_str(name);
+    let classname = unescape_str(classname);
+    let filename = filename.map(|f| unescape_str(f));
 
-#[pyfunction]
-pub fn compute_name(testruns: Vec<Testrun>, framework: &Framework) -> PyResult<Vec<String>> {
-    let mut names = Vec::new();
-
-    for testrun in testruns {
-        let name = get_name(&testrun)?;
-        let classname = get_classname(&testrun)?;
-        let filename = get_filename(&testrun)?;
-        let computed_name = match framework {
-            &Framework::Jest => compute_jest(&classname, &name, filename.as_deref()),
-            &Framework::Pytest => compute_pytest(&classname, &name, filename.as_deref()),
-            &Framework::Vitest => compute_vitest(&classname, &name, filename.as_deref()),
-            &Framework::PHPUnit => compute_phpunit(&classname, &name, filename.as_deref()),
-        };
-
-        names.push(computed_name);
-    }
-    Ok(names)
+    compute(&classname, &name, filename.as_deref())
 }
