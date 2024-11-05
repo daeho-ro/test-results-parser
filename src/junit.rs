@@ -1,13 +1,10 @@
-use std::borrow::Cow;
-
 use pyo3::prelude::*;
 
-use quick_xml::escape::unescape;
 use quick_xml::events::attributes::Attributes;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::reader::Reader;
 
-use crate::compute_name::compute_name;
+use crate::compute_name::{compute_name, unescape_str};
 use crate::testrun::{check_testsuites_name, Framework, Outcome, ParsingInfo, Testrun};
 use crate::ParserError;
 
@@ -58,7 +55,7 @@ fn populate(
     rel_attrs: RelevantAttrs,
     testsuite: String,
     testsuite_time: Option<String>,
-    mut framework: Option<Framework>,
+    framework: Option<Framework>,
 ) -> PyResult<(Testrun, Option<Framework>)> {
     let classname = rel_attrs.classname.unwrap_or_default();
 
@@ -85,31 +82,16 @@ fn populate(
         computed_name: None,
     };
 
-    match framework {
-        None => {
-            if let Some(f) = t.framework() {
-                framework = Some(f);
-                let computed_name = compute_name(
-                    &t.classname,
-                    &t.name,
-                    &f,
-                    t.filename.as_ref().map(|s| s.as_str()),
-                );
-                t.computed_name = Some(computed_name);
-            };
-        }
-        Some(f) => {
-            let computed_name = compute_name(
-                &t.classname,
-                &t.name,
-                &f,
-                t.filename.as_ref().map(|s| s.as_str()),
-            );
-            t.computed_name = Some(computed_name);
-        }
-    }
-
-    println!("t: {:?}", t);
+    let framework = framework.or_else(|| t.framework());
+    if let Some(f) = framework {
+        let computed_name = compute_name(
+            &t.classname,
+            &t.name,
+            f,
+            t.filename.as_ref().map(|s| s.as_str()),
+        );
+        t.computed_name = Some(computed_name);
+    };
 
     Ok((t, framework))
 }
@@ -182,15 +164,10 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                         .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
                     testrun.outcome = Outcome::Failure;
 
-                    testrun.failure_message = get_attribute(&e, "message")?;
+                    testrun.failure_message = get_attribute(&e, "message")?
+                        .as_ref()
+                        .map(|failure_message| unescape_str(failure_message).to_string());
 
-                    if let Some(failure_message) = &testrun.failure_message {
-                        testrun.failure_message = Some(
-                            unescape(&failure_message)
-                                .unwrap_or(Cow::Borrowed(testrun.failure_message.as_ref().unwrap()))
-                                .to_string(),
-                        );
-                    }
                     in_failure = true;
                 }
                 b"testsuite" => {
@@ -247,15 +224,9 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                         .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
                     testrun.outcome = Outcome::Failure;
 
-                    testrun.failure_message = get_attribute(&e, "message")?;
-
-                    if let Some(failure_message) = &testrun.failure_message {
-                        testrun.failure_message = Some(
-                            unescape(&failure_message)
-                                .unwrap_or(Cow::Borrowed(testrun.failure_message.as_ref().unwrap()))
-                                .to_string(),
-                        );
-                    }
+                    testrun.failure_message = get_attribute(&e, "message")?
+                        .as_ref()
+                        .map(|failure_message| unescape_str(failure_message).to_string());
                 }
                 _ => {}
             },
@@ -270,15 +241,9 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                     xml_failure_message.inplace_trim_start();
 
                     testrun.failure_message =
-                        Some(String::from_utf8(xml_failure_message.to_vec())?);
-
-                    if let Some(failure_message) = &testrun.failure_message {
-                        testrun.failure_message = Some(
-                            unescape(&failure_message)
-                                .unwrap_or(Cow::Borrowed(testrun.failure_message.as_ref().unwrap()))
-                                .to_string(),
-                        );
-                    }
+                        Some(String::from_utf8(xml_failure_message.to_vec())?)
+                            .as_ref()
+                            .map(|failure_message| unescape_str(failure_message).to_string());
                 }
             }
 
