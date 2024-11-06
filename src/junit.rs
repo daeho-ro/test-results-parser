@@ -4,7 +4,8 @@ use quick_xml::events::attributes::Attributes;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::reader::Reader;
 
-use crate::testrun::{check_testsuites_name, Outcome, ParsingInfo, Testrun};
+use crate::compute_name::{compute_name, unescape_str};
+use crate::testrun::{check_testsuites_name, Framework, Outcome, ParsingInfo, Testrun};
 use crate::ParserError;
 
 struct RelevantAttrs {
@@ -54,7 +55,8 @@ fn populate(
     rel_attrs: RelevantAttrs,
     testsuite: String,
     testsuite_time: Option<String>,
-) -> PyResult<Testrun> {
+    framework: Option<Framework>,
+) -> PyResult<(Testrun, Option<Framework>)> {
     let classname = rel_attrs.classname.unwrap_or_default();
 
     let name = rel_attrs
@@ -68,7 +70,7 @@ fn populate(
         Some(time_str) => time_str.parse()?,
     };
 
-    Ok(Testrun {
+    let mut t = Testrun {
         name,
         classname,
         duration,
@@ -77,7 +79,21 @@ fn populate(
         failure_message: None,
         filename: rel_attrs.file,
         build_url: None,
-    })
+        computed_name: None,
+    };
+
+    let framework = framework.or_else(|| t.framework());
+    if let Some(f) = framework {
+        let computed_name = compute_name(
+            &t.classname,
+            &t.name,
+            f,
+            t.filename.as_ref().map(|s| s.as_str()),
+        );
+        t.computed_name = Some(computed_name);
+    };
+
+    Ok((t, framework))
 }
 
 #[pyfunction]
@@ -92,7 +108,7 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
 
     let mut buf = Vec::new();
 
-    let mut testsuites_name: Option<String> = None;
+    let mut framework: Option<Framework> = None;
 
     // every time we come across a testsuite element we update this vector:
     // if the testsuite element contains the time attribute append its value to this vec
@@ -115,7 +131,7 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
             Event::Start(e) => match e.name().as_ref() {
                 b"testcase" => {
                     let rel_attrs = get_relevant_attrs(e.attributes())?;
-                    saved_testrun = Some(populate(
+                    let (testrun, parsed_framework) = populate(
                         rel_attrs,
                         testsuite_names
                             .iter()
@@ -124,7 +140,11 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                             .or_else(|| Some(String::new()))
                             .unwrap_or_default(),
                         testsuite_time.iter().rev().find_map(|e| e.clone()),
-                    )?);
+                        framework,
+                    )?;
+                    saved_testrun = Some(testrun);
+                    framework = parsed_framework;
+                    println!("testrun: {:?}", saved_testrun);
                 }
                 b"skipped" => {
                     let testrun = saved_testrun
@@ -144,7 +164,10 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                         .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
                     testrun.outcome = Outcome::Failure;
 
-                    testrun.failure_message = get_attribute(&e, "message")?;
+                    testrun.failure_message = get_attribute(&e, "message")?
+                        .as_ref()
+                        .map(|failure_message| unescape_str(failure_message).to_string());
+
                     in_failure = true;
                 }
                 b"testsuite" => {
@@ -152,7 +175,12 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                     testsuite_time.push(get_attribute(&e, "time")?);
                 }
                 b"testsuites" => {
-                    testsuites_name = get_attribute(&e, "name")?;
+                    let testsuites_name = get_attribute(&e, "name")?;
+                    framework = if let Some(name) = testsuites_name {
+                        check_testsuites_name(&name)
+                    } else {
+                        None
+                    };
                 }
                 _ => {}
             },
@@ -176,7 +204,7 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
             Event::Empty(e) => match e.name().as_ref() {
                 b"testcase" => {
                     let rel_attrs = get_relevant_attrs(e.attributes())?;
-                    let testrun = populate(
+                    let (testrun, parsed_framework) = populate(
                         rel_attrs,
                         testsuite_names
                             .iter()
@@ -185,8 +213,10 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                             .or_else(|| Some(String::new()))
                             .unwrap_or_default(),
                         testsuite_time.iter().rev().find_map(|e| e.clone()),
+                        framework,
                     )?;
                     testruns.push(testrun);
+                    framework = parsed_framework;
                 }
                 b"failure" => {
                     let testrun = saved_testrun
@@ -194,7 +224,9 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                         .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
                     testrun.outcome = Outcome::Failure;
 
-                    testrun.failure_message = get_attribute(&e, "message")?;
+                    testrun.failure_message = get_attribute(&e, "message")?
+                        .as_ref()
+                        .map(|failure_message| unescape_str(failure_message).to_string());
                 }
                 _ => {}
             },
@@ -209,7 +241,9 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
                     xml_failure_message.inplace_trim_start();
 
                     testrun.failure_message =
-                        Some(String::from_utf8(xml_failure_message.to_vec())?);
+                        Some(String::from_utf8(xml_failure_message.to_vec())?)
+                            .as_ref()
+                            .map(|failure_message| unescape_str(failure_message).to_string());
                 }
             }
 
@@ -217,14 +251,6 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
             _ => (),
         }
         buf.clear()
-    }
-
-    let mut framework = testruns.iter().filter_map(|t| t.framework()).next();
-
-    if framework.is_none() {
-        if let Some(name) = testsuites_name {
-            framework = check_testsuites_name(&name);
-        }
     }
 
     Ok(ParsingInfo {
