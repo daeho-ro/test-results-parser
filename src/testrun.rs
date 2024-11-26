@@ -4,6 +4,8 @@ use pyo3::class::basic::CompareOp;
 use pyo3::{prelude::*, pyclass};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+// See https://github.com/PyO3/pyo3/issues/4723
+#[allow(ambiguous_associated_items)]
 #[pyclass(eq, eq_int)]
 pub enum Outcome {
     Pass,
@@ -131,6 +133,7 @@ impl Testrun {
 
 #[pymethods]
 impl Testrun {
+    #[allow(clippy::too_many_arguments)]
     #[new]
     #[pyo3(signature = (name, classname, duration, outcome, testsuite, failure_message=None, filename=None, build_url=None, computed_name=None))]
     fn new(
