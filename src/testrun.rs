@@ -4,6 +4,8 @@ use pyo3::class::basic::CompareOp;
 use pyo3::{prelude::*, pyclass};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+// See https://github.com/PyO3/pyo3/issues/4723
+#[allow(ambiguous_associated_items)]
 #[pyclass(eq, eq_int)]
 pub enum Outcome {
     Pass,
@@ -94,22 +96,11 @@ pub struct Testrun {
     pub filename: Option<String>,
     #[pyo3(get, set)]
     pub build_url: Option<String>,
+    #[pyo3(get, set)]
+    pub computed_name: Option<String>,
 }
 
 impl Testrun {
-    pub fn empty() -> Testrun {
-        Testrun {
-            name: "".into(),
-            classname: "".into(),
-            duration: None,
-            outcome: Outcome::Pass,
-            testsuite: "".into(),
-            failure_message: None,
-            filename: None,
-            build_url: None,
-        }
-    }
-
     pub fn framework(&self) -> Option<Framework> {
         for (name, framework) in FRAMEWORKS {
             if check_substring_before_word_boundary(&self.testsuite, name) {
@@ -142,8 +133,9 @@ impl Testrun {
 
 #[pymethods]
 impl Testrun {
+    #[allow(clippy::too_many_arguments)]
     #[new]
-    #[pyo3(signature = (name, classname, duration, outcome, testsuite, failure_message=None, filename=None, build_url=None))]
+    #[pyo3(signature = (name, classname, duration, outcome, testsuite, failure_message=None, filename=None, build_url=None, computed_name=None))]
     fn new(
         name: String,
         classname: String,
@@ -153,6 +145,7 @@ impl Testrun {
         failure_message: Option<String>,
         filename: Option<String>,
         build_url: Option<String>,
+        computed_name: Option<String>,
     ) -> Self {
         Self {
             name,
@@ -163,12 +156,13 @@ impl Testrun {
             failure_message,
             filename,
             build_url,
+            computed_name,
         }
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "({}, {}, {}, {:?}, {}, {:?}, {:?})",
+            "({}, {}, {}, {:?}, {}, {:?}, {:?}, {:?})",
             self.name,
             self.classname,
             self.outcome,
@@ -176,6 +170,7 @@ impl Testrun {
             self.testsuite,
             self.failure_message,
             self.filename,
+            self.computed_name,
         )
     }
 
@@ -186,7 +181,9 @@ impl Testrun {
                 && self.outcome == other.outcome
                 && self.duration == other.duration
                 && self.testsuite == other.testsuite
-                && self.failure_message == other.failure_message),
+                && self.failure_message == other.failure_message
+                && self.filename == other.filename
+                && self.computed_name == other.computed_name),
             _ => todo!(),
         }
     }
@@ -285,6 +282,7 @@ mod tests {
             failure_message: None,
             filename: None,
             build_url: None,
+            computed_name: None,
         };
         assert_eq!(t.framework(), Some(Framework::Pytest));
     }
@@ -300,6 +298,7 @@ mod tests {
             failure_message: None,
             filename: Some(".py".to_string()),
             build_url: None,
+            computed_name: None,
         };
         assert_eq!(t.framework(), Some(Framework::Pytest));
     }
@@ -315,6 +314,7 @@ mod tests {
             failure_message: None,
             filename: None,
             build_url: None,
+            computed_name: None,
         };
         assert_eq!(t.framework(), Some(Framework::Pytest));
     }
@@ -330,6 +330,7 @@ mod tests {
             failure_message: None,
             filename: None,
             build_url: None,
+            computed_name: None,
         };
         assert_eq!(t.framework(), Some(Framework::Pytest));
     }
@@ -345,6 +346,7 @@ mod tests {
             failure_message: Some(".py".to_string()),
             filename: None,
             build_url: None,
+            computed_name: None,
         };
         assert_eq!(t.framework(), Some(Framework::Pytest));
     }
@@ -360,6 +362,7 @@ mod tests {
             failure_message: Some(".py".to_string()),
             filename: None,
             build_url: Some("https://example.com/build_url".to_string()),
+            computed_name: None,
         };
         assert_eq!(t.framework(), Some(Framework::Pytest));
     }
