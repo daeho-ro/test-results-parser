@@ -91,7 +91,31 @@ fn populate(
 pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
     let mut reader = Reader::from_reader(file_bytes);
     reader.config_mut().trim_text(true);
+    let thing = use_reader(&mut reader).map_err(|e| {
+        let pos = reader.buffer_position();
+        let (line, col) = get_position_info(file_bytes, pos.try_into().unwrap());
+        ParserError::new_err(format!("Error at {}:{}: {}", line, col, e))
+    })?;
+    Ok(thing)
+}
 
+fn get_position_info(input: &[u8], byte_offset: usize) -> (usize, usize) {
+    let mut line = 1;
+    let mut last_newline = 0;
+
+    for (i, &byte) in input.iter().take(byte_offset).enumerate() {
+        if byte == b'\n' {
+            line += 1;
+            last_newline = i + 1;
+        }
+    }
+
+    let column = byte_offset - last_newline + 1;
+
+    (line, column)
+}
+
+fn use_reader(reader: &mut Reader<&[u8]>) -> PyResult<ParsingInfo> {
     let mut testruns: Vec<Testrun> = Vec::new();
     let mut saved_testrun: Option<Testrun> = None;
 
