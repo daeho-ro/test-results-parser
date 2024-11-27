@@ -63,8 +63,7 @@ fn populate(
         .time
         .as_deref()
         .or(testsuite_time)
-        .ok_or_else(|| ParserError::new_err("No time/duration found"))?
-        .parse()?;
+        .and_then(|t| t.parse().ok());
 
     let mut t = Testrun {
         name,
