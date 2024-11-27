@@ -63,7 +63,7 @@ fn populate(
         .time
         .as_deref()
         .or(testsuite_time)
-        .map(|t| t.parse().unwrap());
+        .and_then(|t| t.parse().ok());
 
     let mut t = Testrun {
         name,
