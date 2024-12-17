@@ -25,5 +25,10 @@ fn test_results_parser(py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(failure_message::build_message, m)?)?;
     m.add_function(wrap_pyfunction!(failure_message::escape_message, m)?)?;
     m.add_function(wrap_pyfunction!(failure_message::shorten_file_paths, m)?)?;
+
+    m.add_class::<binary::AggregationReader>()?;
+    m.add_class::<binary::BinaryFormatWriter>()?;
+    m.add_class::<binary::TestAggregate>()?;
+
     Ok(())
 }
