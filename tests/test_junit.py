@@ -283,6 +283,44 @@ tests/test_parsers.py:16: AssertionError""",
                     [],
                 ),
             ),
+            (
+                "./tests/skip-error.junit.xml",
+                ParsingInfo(
+                    Framework.Pytest,
+                    [
+                        Testrun(
+                            name="test_subtract",
+                            classname="tests.test_math.TestMath",
+                            duration=0.1,
+                            outcome=Outcome.Error,
+                            testsuite="pytest",
+                            failure_message="hello world",
+                            filename=None,
+                            computed_name="tests.test_math.TestMath::test_subtract",
+                        ),
+                        Testrun(
+                            name="test_multiply",
+                            classname="tests.test_math.TestMath",
+                            duration=0.1,
+                            outcome=Outcome.Error,
+                            testsuite="pytest",
+                            failure_message=None,
+                            filename=None,
+                            computed_name="tests.test_math.TestMath::test_multiply",
+                        ),
+                        Testrun(
+                            name="test_add",
+                            classname="tests.test_math.TestMath",
+                            duration=0.1,
+                            outcome=Outcome.Skip,
+                            testsuite="pytest",
+                            failure_message=None,
+                            filename=None,
+                            computed_name="tests.test_math.TestMath::test_add",
+                        )
+                    ],
+                ),
+            ),
         ],
     )
     def test_junit(self, filename, expected):

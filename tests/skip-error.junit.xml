@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+    <testsuite name="pytest" errors="1" failures="0" skipped="1" tests="2" time="0.1"
+        timestamp="2024-01-01T12:00:00.000000">
+        <testcase classname="tests.test_math.TestMath" name="test_subtract" time="0.1">
+            <error message="hello world"> hello world </error>
+        </testcase>
+        <testcase classname="tests.test_math.TestMath" name="test_multiply" time="0.1">
+            <error />
+        </testcase>
+        <testcase classname="tests.test_math.TestMath" name="test_add" time="0.1">
+            <skipped />
+        </testcase>
+    </testsuite>
+</testsuites>
