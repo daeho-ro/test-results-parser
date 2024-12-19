@@ -98,7 +98,7 @@ pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
     Ok(thing)
 }
 
-fn get_position_info(input: &[u8], byte_offset: usize) -> (usize, usize) {
+pub fn get_position_info(input: &[u8], byte_offset: usize) -> (usize, usize) {
     let mut line = 1;
     let mut last_newline = 0;
 
@@ -119,6 +119,7 @@ fn use_reader(reader: &mut Reader<&[u8]>) -> PyResult<ParsingInfo> {
     let mut saved_testrun: Option<Testrun> = None;
 
     let mut in_failure: bool = false;
+    let mut in_error: bool = false;
 
     let mut framework: Option<Framework> = None;
 
@@ -168,6 +169,11 @@ fn use_reader(reader: &mut Reader<&[u8]>) -> PyResult<ParsingInfo> {
                         .as_mut()
                         .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
                     testrun.outcome = Outcome::Error;
+
+                    testrun.failure_message = get_attribute(&e, "message")?
+                        .map(|failure_message| unescape_str(&failure_message).into());
+
+                    in_error = true;
                 }
                 b"failure" => {
                     let testrun = saved_testrun
@@ -200,6 +206,7 @@ fn use_reader(reader: &mut Reader<&[u8]>) -> PyResult<ParsingInfo> {
                     testruns.push(testrun);
                 }
                 b"failure" => in_failure = false,
+                b"error" => in_error = false,
                 b"testsuite" => {
                     testsuite_times.pop();
                     testsuite_names.pop();
@@ -231,10 +238,25 @@ fn use_reader(reader: &mut Reader<&[u8]>) -> PyResult<ParsingInfo> {
                     testrun.failure_message = get_attribute(&e, "message")?
                         .map(|failure_message| unescape_str(&failure_message).into());
                 }
+                b"skipped" => {
+                    let testrun = saved_testrun
+                        .as_mut()
+                        .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
+                    testrun.outcome = Outcome::Skip;
+                }
+                b"error" => {
+                    let testrun = saved_testrun
+                        .as_mut()
+                        .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
+                    testrun.outcome = Outcome::Error;
+
+                    testrun.failure_message = get_attribute(&e, "message")?
+                        .map(|failure_message| unescape_str(&failure_message).into());
+                }
                 _ => {}
             },
             Event::Text(mut xml_failure_message) => {
-                if in_failure {
+                if in_failure || in_error {
                     let testrun = saved_testrun
                         .as_mut()
                         .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
