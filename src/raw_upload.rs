@@ -79,8 +79,8 @@ pub fn parse_raw_upload(raw_upload_bytes: &[u8]) -> PyResult<(Vec<u8>, Vec<u8>)>
             let pos = reader.buffer_position();
             let (line, col) = get_position_info(&decompressed_file_bytes, pos.try_into().unwrap());
             ParserError::new_err(format!(
-                "Error parsing JUnit XML at {}:{}: {}",
-                line, col, e
+                "Error parsing JUnit XML in {} at {}:{}: {}",
+                file.filename, line, col, e
             ))
         })?;
         results.push(reader_result);
