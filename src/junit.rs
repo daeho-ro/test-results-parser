@@ -1,4 +1,4 @@
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use pyo3::prelude::*;
 use std::collections::HashSet;
 
@@ -7,8 +7,7 @@ use quick_xml::events::{BytesStart, Event};
 use quick_xml::reader::Reader;
 
 use crate::compute_name::{compute_name, unescape_str};
-use crate::testrun::{check_testsuites_name, ParsingInfo, Testrun};
-use crate::ParserError;
+use crate::testrun::{check_testsuites_name, Framework, Outcome, ParsingInfo, Testrun};
 
 #[derive(Default)]
 struct RelevantAttrs {
@@ -52,9 +51,9 @@ fn populate(
     rel_attrs: RelevantAttrs,
     testsuite: String,
     testsuite_time: Option<&str>,
-    framework: Option<&'static str>,
+    framework: Option<Framework>,
     network: Option<&HashSet<String>>,
-) -> PyResult<(Testrun, Option<&'static str>)> {
+) -> PyResult<(Testrun, Option<Framework>)> {
     let classname = rel_attrs.classname.unwrap_or_default();
 
     let name = rel_attrs.name.context("No name found")?;
@@ -69,7 +68,7 @@ fn populate(
         name,
         classname,
         duration,
-        outcome: "pass".to_string(),
+        outcome: Outcome::Pass,
         testsuite,
         failure_message: None,
         filename: rel_attrs.file,
@@ -112,7 +111,7 @@ pub fn use_reader(
     let mut in_failure: bool = false;
     let mut in_error: bool = false;
 
-    let mut framework: Option<&'static str> = None;
+    let mut framework: Option<Framework> = None;
 
     // every time we come across a testsuite element we update this vector:
     // if the testsuite element contains the time attribute append its value to this vec
@@ -149,14 +148,14 @@ pub fn use_reader(
                 b"skipped" => {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
-                    testrun.outcome = "skip".to_string();
+                        .ok_or_else(|| anyhow!("Error accessing saved testrun"))?;
+                    testrun.outcome = Outcome::Skip;
                 }
                 b"error" => {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
-                    testrun.outcome = "error".to_string();
+                        .ok_or_else(|| anyhow!("Error accessing saved testrun"))?;
+                    testrun.outcome = Outcome::Error;
 
                     testrun.failure_message = get_attribute(&e, "message")?
                         .map(|failure_message| unescape_str(&failure_message).into());
@@ -166,8 +165,8 @@ pub fn use_reader(
                 b"failure" => {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
-                    testrun.outcome = "failure".to_string();
+                        .ok_or_else(|| anyhow!("Error accessing saved testrun"))?;
+                    testrun.outcome = Outcome::Failure;
 
                     testrun.failure_message = get_attribute(&e, "message")?
                         .map(|failure_message| unescape_str(&failure_message).into());
@@ -187,7 +186,7 @@ pub fn use_reader(
             Event::End(e) => match e.name().as_ref() {
                 b"testcase" => {
                     let testrun = saved_testrun.take().ok_or_else(|| {
-                        ParserError::new_err(
+                        anyhow!(
                             "Met testcase closing tag without first meeting testcase opening tag",
                         )
                     })?;
@@ -221,8 +220,8 @@ pub fn use_reader(
                 b"failure" => {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
-                    testrun.outcome = "failure".to_string();
+                        .ok_or_else(|| anyhow!("Error accessing saved testrun"))?;
+                    testrun.outcome = Outcome::Failure;
 
                     testrun.failure_message = get_attribute(&e, "message")?
                         .map(|failure_message| unescape_str(&failure_message).into());
@@ -230,14 +229,14 @@ pub fn use_reader(
                 b"skipped" => {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
-                    testrun.outcome = "skip".to_string();
+                        .ok_or_else(|| anyhow!("Error accessing saved testrun"))?;
+                    testrun.outcome = Outcome::Skip;
                 }
                 b"error" => {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
-                    testrun.outcome = "error".to_string();
+                        .ok_or_else(|| anyhow!("Error accessing saved testrun"))?;
+                    testrun.outcome = Outcome::Error;
 
                     testrun.failure_message = get_attribute(&e, "message")?
                         .map(|failure_message| unescape_str(&failure_message).into());
@@ -248,7 +247,7 @@ pub fn use_reader(
                 if in_failure || in_error {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
+                        .ok_or_else(|| anyhow!("Error accessing saved testrun"))?;
 
                     xml_failure_message.inplace_trim_end();
                     xml_failure_message.inplace_trim_start();

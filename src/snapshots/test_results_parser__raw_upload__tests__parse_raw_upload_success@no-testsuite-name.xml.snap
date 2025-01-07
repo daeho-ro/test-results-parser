@@ -1,6 +1,6 @@
 ---
 source: src/raw_upload.rs
-expression: parse_raw_upload(&upload_json).unwrap().0
+expression: results
 input_file: tests/no-testsuite-name.xml
 ---
 - framework: ~
@@ -8,7 +8,7 @@ input_file: tests/no-testsuite-name.xml
     - name: a_unit_test
       classname: a_unit_test
       duration: 33.4734
-      outcome: failure
+      outcome: Failure
       testsuite: ""
       failure_message: Failed
       filename: ~

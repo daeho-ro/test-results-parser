@@ -1,6 +1,6 @@
 ---
 source: src/raw_upload.rs
-expression: parse_raw_upload(&upload_json).unwrap().0
+expression: results
 input_file: tests/junit-no-testcase-timestamp.xml
 ---
 - framework: Pytest
@@ -8,7 +8,7 @@ input_file: tests/junit-no-testcase-timestamp.xml
     - name: "test_junit[junit.xml--True]"
       classname: tests.test_parsers.TestParsers
       duration: 0.186
-      outcome: failure
+      outcome: Failure
       testsuite: pytest
       failure_message: aaaaaaa
       filename: ~
@@ -17,7 +17,7 @@ input_file: tests/junit-no-testcase-timestamp.xml
     - name: "test_junit[jest-junit.xml--False]"
       classname: tests.test_parsers.TestParsers
       duration: 0.186
-      outcome: pass
+      outcome: Pass
       testsuite: pytest
       failure_message: ~
       filename: ~

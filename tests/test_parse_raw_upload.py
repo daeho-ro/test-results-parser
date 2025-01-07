@@ -2,8 +2,7 @@ import pytest
 import base64
 import zlib
 import json
-import msgpack
-from test_results_parser import parse_raw_upload, ParserError
+from test_results_parser import parse_raw_upload
 
 class TestParsers:
     def test_junit(self):

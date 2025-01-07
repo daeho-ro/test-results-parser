@@ -1,6 +1,6 @@
 ---
 source: src/raw_upload.rs
-expression: parse_raw_upload(&upload_json).unwrap().0
+expression: results
 input_file: tests/skip-error.junit.xml
 ---
 - framework: Pytest
@@ -8,7 +8,7 @@ input_file: tests/skip-error.junit.xml
     - name: test_subtract
       classname: tests.test_math.TestMath
       duration: 0.1
-      outcome: error
+      outcome: Error
       testsuite: pytest
       failure_message: hello world
       filename: ~
@@ -17,7 +17,7 @@ input_file: tests/skip-error.junit.xml
     - name: test_multiply
       classname: tests.test_math.TestMath
       duration: 0.1
-      outcome: error
+      outcome: Error
       testsuite: pytest
       failure_message: ~
       filename: ~
@@ -26,7 +26,7 @@ input_file: tests/skip-error.junit.xml
     - name: test_add
       classname: tests.test_math.TestMath
       duration: 0.1
-      outcome: skip
+      outcome: Skip
       testsuite: pytest
       failure_message: ~
       filename: ~

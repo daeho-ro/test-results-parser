@@ -116,8 +116,8 @@ mod tests {
         let compressed = encoder.finish().unwrap();
         let base64_data = BASE64_STANDARD.encode(compressed);
         let upload_json = format!(
-            r#"{{"network": [], "test_results_files": [{{"filename": "junit.xml", "format": "base64+compressed", "data": "{}"}}]}}"#,
-            base64_data
+            r#"{{"network": [], "test_results_files": [{{"filename": "{}", "format": "base64+compressed", "data": "{}"}}]}}"#,
+            filename, base64_data,
         );
         upload_json.as_bytes().to_vec()
     }
@@ -126,7 +126,13 @@ mod tests {
     fn test_parse_raw_upload_success() {
         glob!("../tests", "*.xml", |path| {
             let upload_json = file_into_bytes(path.to_str().unwrap());
-            assert_yaml_snapshot!(parse_raw_upload(&upload_json).unwrap().0);
+            let result = parse_raw_upload(&upload_json);
+            match result {
+                Ok((results, _)) => assert_yaml_snapshot!(results),
+                Err(e) => {
+                    assert_yaml_snapshot!(e.to_string());
+                }
+            }
         });
     }
 }
