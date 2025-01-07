@@ -24,7 +24,6 @@ watto = { git = "https://github.com/getsentry/watto", features = [
     "strings",
     "offset_set",
 ] }
-anyhow = "1.0.35"
 
 [dev-dependencies]
 criterion = { version = "2.7.2", package = "codspeed-criterion-compat" }
@@ -33,3 +32,8 @@ insta = { version = "1.42.0", features = ["glob", "yaml"] }
 
 [profile.release]
 debug = 1
+
+
+[[bench]]
+name = "binary"
+harness = false

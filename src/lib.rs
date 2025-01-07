@@ -1,6 +1,7 @@
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 
+pub mod binary;
 mod compute_name;
 mod failure_message;
 mod junit;
@@ -18,5 +19,10 @@ fn test_results_parser(_: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(failure_message::build_message, m)?)?;
     m.add_function(wrap_pyfunction!(failure_message::escape_message, m)?)?;
     m.add_function(wrap_pyfunction!(failure_message::shorten_file_paths, m)?)?;
+
+    m.add_class::<binary::AggregationReader>()?;
+    m.add_class::<binary::BinaryFormatWriter>()?;
+    m.add_class::<binary::TestAggregate>()?;
+
     Ok(())
 }
