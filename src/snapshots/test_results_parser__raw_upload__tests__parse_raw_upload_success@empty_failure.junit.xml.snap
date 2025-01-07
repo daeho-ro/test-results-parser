@@ -1,0 +1,25 @@
+---
+source: src/raw_upload.rs
+expression: parse_raw_upload(&upload_json).unwrap().0
+input_file: tests/empty_failure.junit.xml
+---
+- framework: ~
+  testruns:
+    - name: test.test works
+      classname: test.test
+      duration: 0.234
+      outcome: pass
+      testsuite: test
+      failure_message: ~
+      filename: "./test.rb"
+      build_url: ~
+      computed_name: ~
+    - name: test.test fails
+      classname: test.test
+      duration: 1
+      outcome: failure
+      testsuite: test
+      failure_message: TestError
+      filename: "./test.rb"
+      build_url: ~
+      computed_name: ~

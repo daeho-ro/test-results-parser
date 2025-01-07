@@ -1,3 +1,5 @@
+use anyhow::Context;
+
 use base64::prelude::*;
 use pyo3::prelude::*;
 use std::collections::HashSet;
@@ -10,7 +12,6 @@ use serde::Deserialize;
 
 use crate::junit::{get_position_info, use_reader};
 use crate::testrun::ParsingInfo;
-use crate::ParserError;
 
 #[derive(Deserialize, Debug, Clone)]
 struct TestResultFile {
@@ -30,7 +31,7 @@ struct RawTestResultUpload {
 
 #[derive(Debug, Clone)]
 struct ReadableFile {
-    filename: Vec<u8>,
+    filename: String,
     data: Vec<u8>,
 }
 
@@ -41,7 +42,7 @@ fn serialize_to_legacy_format(readable_files: Vec<ReadableFile>) -> Vec<u8> {
     let mut res = Vec::new();
     for file in readable_files {
         res.extend_from_slice(LEGACY_FORMAT_PREFIX);
-        res.extend_from_slice(&file.filename);
+        res.extend_from_slice(file.filename.as_bytes());
         res.extend_from_slice(b"\n");
         res.extend_from_slice(&file.data);
         res.extend_from_slice(b"\n");
@@ -53,9 +54,9 @@ fn serialize_to_legacy_format(readable_files: Vec<ReadableFile>) -> Vec<u8> {
 
 #[pyfunction]
 #[pyo3(signature = (raw_upload_bytes))]
-pub fn parse_raw_upload(raw_upload_bytes: &[u8]) -> PyResult<(Vec<u8>, Vec<u8>)> {
-    let upload: RawTestResultUpload = serde_json::from_slice(raw_upload_bytes)
-        .map_err(|e| ParserError::new_err(format!("Error deserializing json: {}", e)))?;
+pub fn parse_raw_upload(raw_upload_bytes: &[u8]) -> anyhow::Result<(Vec<ParsingInfo>, Vec<u8>)> {
+    let upload: RawTestResultUpload =
+        serde_json::from_slice(raw_upload_bytes).context("Error deserializing json")?;
     let network: Option<HashSet<String>> = upload.network.map(|v| v.into_iter().collect());
 
     let mut results: Vec<ParsingInfo> = Vec::new();
@@ -64,38 +65,68 @@ pub fn parse_raw_upload(raw_upload_bytes: &[u8]) -> PyResult<(Vec<u8>, Vec<u8>)>
     for file in upload.test_results_files {
         let decoded_file_bytes = BASE64_STANDARD
             .decode(file.data)
-            .map_err(|e| ParserError::new_err(format!("Error decoding base64: {}", e)))?;
+            .context("Error decoding base64")?;
 
-        let mut decoder = ZlibDecoder::new(&decoded_file_bytes[..]);
+        let mut decoder = ZlibDecoder::new(decoded_file_bytes.as_slice());
 
         let mut decompressed_file_bytes = Vec::new();
         decoder
             .read_to_end(&mut decompressed_file_bytes)
-            .map_err(|e| ParserError::new_err(format!("Error decompressing file: {}", e)))?;
+            .context("Error decompressing file")?;
 
-        let mut reader = Reader::from_reader(&decompressed_file_bytes[..]);
+        let mut reader = Reader::from_reader(decompressed_file_bytes.as_slice());
         reader.config_mut().trim_text(true);
-        let reader_result = use_reader(&mut reader, network.as_ref()).map_err(|e| {
+        let reader_result = use_reader(&mut reader, network.as_ref()).with_context(|| {
             let pos = reader.buffer_position();
             let (line, col) = get_position_info(&decompressed_file_bytes, pos.try_into().unwrap());
-            ParserError::new_err(format!(
-                "Error parsing JUnit XML in {} at {}:{}: {}",
-                file.filename, line, col, e
-            ))
+            format!(
+                "Error parsing JUnit XML in {} at {}:{}",
+                file.filename, line, col
+            )
         })?;
+
         results.push(reader_result);
 
         let readable_file = ReadableFile {
             data: decompressed_file_bytes,
-            filename: file.filename.into_bytes(),
+            filename: file.filename,
         };
         readable_files.push(readable_file);
     }
 
-    let results_bytes = rmp_serde::to_vec_named(&results)
-        .map_err(|_| ParserError::new_err("Error serializing pr comment summary"))?;
-
     let readable_file = serialize_to_legacy_format(readable_files);
 
-    Ok((results_bytes, readable_file))
+    Ok((results, readable_file))
+}
+
+#[cfg(test)]
+mod tests {
+    use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+    use base64::Engine;
+    use flate2::Compression;
+    use std::io::Write;
+
+    use super::*;
+    use insta::{assert_yaml_snapshot, glob};
+
+    fn file_into_bytes(filename: &str) -> Vec<u8> {
+        let upload = std::fs::read(filename).unwrap();
+        let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(&upload).unwrap();
+        let compressed = encoder.finish().unwrap();
+        let base64_data = BASE64_STANDARD.encode(compressed);
+        let upload_json = format!(
+            r#"{{"network": [], "test_results_files": [{{"filename": "junit.xml", "format": "base64+compressed", "data": "{}"}}]}}"#,
+            base64_data
+        );
+        upload_json.as_bytes().to_vec()
+    }
+
+    #[test]
+    fn test_parse_raw_upload_success() {
+        glob!("../tests", "*.xml", |path| {
+            let upload_json = file_into_bytes(path.to_str().unwrap());
+            assert_yaml_snapshot!(parse_raw_upload(&upload_json).unwrap().0);
+        });
+    }
 }
