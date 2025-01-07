@@ -16,16 +16,12 @@ use crate::testrun::ParsingInfo;
 #[derive(Deserialize, Debug, Clone)]
 struct TestResultFile {
     filename: String,
-    #[serde(skip_deserializing)]
-    _format: String,
     data: String,
-    #[serde(skip_deserializing)]
-    _labels: Vec<String>,
 }
 #[derive(Deserialize, Debug, Clone)]
 struct RawTestResultUpload {
     #[serde(default)]
-    network: Option<Vec<String>>,
+    network: Option<HashSet<String>>,
     test_results_files: Vec<TestResultFile>,
 }
 
@@ -57,10 +53,10 @@ fn serialize_to_legacy_format(readable_files: Vec<ReadableFile>) -> Vec<u8> {
 pub fn parse_raw_upload(raw_upload_bytes: &[u8]) -> anyhow::Result<(Vec<ParsingInfo>, Vec<u8>)> {
     let upload: RawTestResultUpload =
         serde_json::from_slice(raw_upload_bytes).context("Error deserializing json")?;
-    let network: Option<HashSet<String>> = upload.network.map(|v| v.into_iter().collect());
+    let network: Option<HashSet<String>> = upload.network;
 
-    let mut results: Vec<ParsingInfo> = Vec::new();
-    let mut readable_files: Vec<ReadableFile> = Vec::new();
+    let mut results: Vec<ParsingInfo> = Vec::with_capacity(upload.test_results_files.len());
+    let mut readable_files: Vec<ReadableFile> = Vec::with_capacity(upload.test_results_files.len());
 
     for file in upload.test_results_files {
         let decoded_file_bytes = BASE64_STANDARD

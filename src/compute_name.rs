@@ -1,7 +1,6 @@
+use crate::testrun::Framework;
 use quick_xml::escape::unescape;
 use std::{borrow::Cow, collections::HashSet};
-
-use crate::testrun::Framework;
 
 fn compute_pytest_using_filename(classname: &str, name: &str, filename: &str) -> String {
     let path_components = filename.split('/').count();
