@@ -1,0 +1,43 @@
+---
+source: src/raw_upload.rs
+expression: results
+input_file: tests/jest-junit.xml
+---
+- framework: Jest
+  testruns:
+    - name: Title when rendered renders pull title
+      classname: Title when rendered renders pull title
+      duration: 0.036
+      outcome: Pass
+      testsuite: Title
+      failure_message: ~
+      filename: ~
+      build_url: ~
+      computed_name: Title when rendered renders pull title
+    - name: Title when rendered renders pull author
+      classname: Title when rendered renders pull author
+      duration: 0.005
+      outcome: Pass
+      testsuite: Title
+      failure_message: ~
+      filename: ~
+      build_url: ~
+      computed_name: Title when rendered renders pull author
+    - name: Title when rendered renders pull updatestamp
+      classname: Title when rendered renders pull updatestamp
+      duration: 0.002
+      outcome: Pass
+      testsuite: Title
+      failure_message: ~
+      filename: ~
+      build_url: ~
+      computed_name: Title when rendered renders pull updatestamp
+    - name: Title when rendered for first pull request renders pull title
+      classname: Title when rendered for first pull request renders pull title
+      duration: 0.006
+      outcome: Pass
+      testsuite: Title
+      failure_message: ~
+      filename: ~
+      build_url: ~
+      computed_name: Title when rendered for first pull request renders pull title

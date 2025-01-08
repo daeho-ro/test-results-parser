@@ -1,0 +1,6 @@
+---
+source: src/raw_upload.rs
+expression: e.to_string()
+input_file: tests/error.xml
+---
+"Error parsing JUnit XML in error.xml at 8:24"

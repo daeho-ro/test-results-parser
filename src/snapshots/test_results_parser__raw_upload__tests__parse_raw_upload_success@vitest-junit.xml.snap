@@ -1,0 +1,25 @@
+---
+source: src/raw_upload.rs
+expression: results
+input_file: tests/vitest-junit.xml
+---
+- framework: Vitest
+  testruns:
+    - name: first test file &gt; 2 + 2 should equal 4
+      classname: __tests__/test-file-1.test.ts
+      duration: 0.01
+      outcome: Failure
+      testsuite: __tests__/test-file-1.test.ts
+      failure_message: "AssertionError: expected 5 to be 4 // Object.is equality\n ❯ __tests__/test-file-1.test.ts:20:28"
+      filename: ~
+      build_url: ~
+      computed_name: __tests__/test-file-1.test.ts > first test file > 2 + 2 should equal 4
+    - name: first test file &gt; 4 - 2 should equal 2
+      classname: __tests__/test-file-1.test.ts
+      duration: 0
+      outcome: Pass
+      testsuite: __tests__/test-file-1.test.ts
+      failure_message: ~
+      filename: ~
+      build_url: ~
+      computed_name: __tests__/test-file-1.test.ts > first test file > 4 - 2 should equal 2

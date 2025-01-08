@@ -1,0 +1,25 @@
+---
+source: src/raw_upload.rs
+expression: results
+input_file: tests/phpunit.junit.xml
+---
+- framework: PHPUnit
+  testruns:
+    - name: test1
+      classname: class.className
+      duration: 0.1
+      outcome: Pass
+      testsuite: Thing
+      failure_message: ~
+      filename: /file1.php
+      build_url: ~
+      computed_name: "class.className::test1"
+    - name: test2
+      classname: ""
+      duration: 0.1
+      outcome: Pass
+      testsuite: Thing
+      failure_message: ~
+      filename: /file1.php
+      build_url: ~
+      computed_name: "::test2"

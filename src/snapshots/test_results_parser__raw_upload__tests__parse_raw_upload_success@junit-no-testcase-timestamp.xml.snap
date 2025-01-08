@@ -1,0 +1,25 @@
+---
+source: src/raw_upload.rs
+expression: results
+input_file: tests/junit-no-testcase-timestamp.xml
+---
+- framework: Pytest
+  testruns:
+    - name: "test_junit[junit.xml--True]"
+      classname: tests.test_parsers.TestParsers
+      duration: 0.186
+      outcome: Failure
+      testsuite: pytest
+      failure_message: aaaaaaa
+      filename: ~
+      build_url: ~
+      computed_name: "tests.test_parsers.TestParsers::test_junit[junit.xml--True]"
+    - name: "test_junit[jest-junit.xml--False]"
+      classname: tests.test_parsers.TestParsers
+      duration: 0.186
+      outcome: Pass
+      testsuite: pytest
+      failure_message: ~
+      filename: ~
+      build_url: ~
+      computed_name: "tests.test_parsers.TestParsers::test_junit[jest-junit.xml--False]"

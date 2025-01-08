@@ -1,0 +1,34 @@
+---
+source: src/raw_upload.rs
+expression: results
+input_file: tests/skip-error.junit.xml
+---
+- framework: Pytest
+  testruns:
+    - name: test_subtract
+      classname: tests.test_math.TestMath
+      duration: 0.1
+      outcome: Error
+      testsuite: pytest
+      failure_message: hello world
+      filename: ~
+      build_url: ~
+      computed_name: "tests.test_math.TestMath::test_subtract"
+    - name: test_multiply
+      classname: tests.test_math.TestMath
+      duration: 0.1
+      outcome: Error
+      testsuite: pytest
+      failure_message: ~
+      filename: ~
+      build_url: ~
+      computed_name: "tests.test_math.TestMath::test_multiply"
+    - name: test_add
+      classname: tests.test_math.TestMath
+      duration: 0.1
+      outcome: Skip
+      testsuite: pytest
+      failure_message: ~
+      filename: ~
+      build_url: ~
+      computed_name: "tests.test_math.TestMath::test_add"

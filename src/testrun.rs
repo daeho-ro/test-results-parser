@@ -1,60 +1,17 @@
-use std::fmt::Display;
-
-use pyo3::class::basic::CompareOp;
 use pyo3::prelude::*;
+use pyo3::types::PyString;
+use pyo3::{PyAny, PyResult};
+use serde::Serialize;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[pyclass(eq, eq_int)]
-pub enum Outcome {
-    Pass,
-    Error,
-    Failure,
-    Skip,
-}
-
-#[pymethods]
-impl Outcome {
-    #[new]
-    fn new(value: &str) -> Self {
-        match value {
-            "pass" => Outcome::Pass,
-            "failure" => Outcome::Failure,
-            "error" => Outcome::Error,
-            "skip" => Outcome::Skip,
-            _ => Outcome::Failure,
-        }
-    }
-
-    fn __str__(&self) -> &str {
-        match &self {
-            Outcome::Pass => "pass",
-            Outcome::Failure => "failure",
-            Outcome::Error => "error",
-            Outcome::Skip => "skip",
-        }
-    }
-}
-
-impl Display for Outcome {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self {
-            Outcome::Pass => write!(f, "Pass"),
-            Outcome::Failure => write!(f, "Failure"),
-            Outcome::Error => write!(f, "Error"),
-            Outcome::Skip => write!(f, "Skip"),
-        }
-    }
-}
-
-static FRAMEWORKS: &[(&str, Framework)] = &[
+static FRAMEWORKS: [(&str, Framework); 4] = [
     ("pytest", Framework::Pytest),
     ("vitest", Framework::Vitest),
     ("jest", Framework::Jest),
     ("phpunit", Framework::PHPUnit),
 ];
 
-static EXTENSIONS: &[(&str, Framework)] =
-    &[(".py", Framework::Pytest), (".php", Framework::PHPUnit)];
+static EXTENSIONS: [(&str, Framework); 2] =
+    [(".py", Framework::Pytest), (".php", Framework::PHPUnit)];
 
 fn check_substring_before_word_boundary(string: &str, substring: &str) -> bool {
     if let Some((_, suffix)) = string.to_lowercase().split_once(substring) {
@@ -75,120 +32,46 @@ pub fn check_testsuites_name(testsuites_name: &str) -> Option<Framework> {
         .next()
 }
 
-#[derive(Clone, Debug, PartialEq)]
-#[pyclass]
-pub struct Testrun {
-    #[pyo3(get, set)]
-    pub name: String,
-    #[pyo3(get, set)]
-    pub classname: String,
-    #[pyo3(get, set)]
-    pub duration: Option<f64>,
-    #[pyo3(get, set)]
-    pub outcome: Outcome,
-    #[pyo3(get, set)]
-    pub testsuite: String,
-    #[pyo3(get, set)]
-    pub failure_message: Option<String>,
-    #[pyo3(get, set)]
-    pub filename: Option<String>,
-    #[pyo3(get, set)]
-    pub build_url: Option<String>,
-    #[pyo3(get, set)]
-    pub computed_name: Option<String>,
+#[derive(Clone, Copy, Debug, Serialize, PartialEq)]
+pub enum Outcome {
+    Pass,
+    Failure,
+    Skip,
+    Error,
 }
 
-impl Testrun {
-    pub fn framework(&self) -> Option<Framework> {
-        for (name, framework) in FRAMEWORKS {
-            if check_substring_before_word_boundary(&self.testsuite, name) {
-                return Some(framework.to_owned());
-            }
-        }
+impl<'py> IntoPyObject<'py> for Outcome {
+    type Target = PyString;
+    type Output = Bound<'py, Self::Target>;
+    type Error = std::convert::Infallible;
 
-        for (extension, framework) in EXTENSIONS {
-            if check_substring_before_word_boundary(&self.classname, extension)
-                || check_substring_before_word_boundary(&self.name, extension)
-            {
-                return Some(framework.to_owned());
-            }
-
-            if let Some(message) = &self.failure_message {
-                if check_substring_before_word_boundary(message, extension) {
-                    return Some(framework.to_owned());
-                }
-            }
-
-            if let Some(filename) = &self.filename {
-                if check_substring_before_word_boundary(filename, extension) {
-                    return Some(framework.to_owned());
-                }
-            }
-        }
-        None
-    }
-}
-
-#[pymethods]
-impl Testrun {
-    #[allow(clippy::too_many_arguments)]
-    #[new]
-    #[pyo3(signature = (name, classname, duration, outcome, testsuite, failure_message=None, filename=None, build_url=None, computed_name=None))]
-    fn new(
-        name: String,
-        classname: String,
-        duration: Option<f64>,
-        outcome: Outcome,
-        testsuite: String,
-        failure_message: Option<String>,
-        filename: Option<String>,
-        build_url: Option<String>,
-        computed_name: Option<String>,
-    ) -> Self {
-        Self {
-            name,
-            classname,
-            duration,
-            outcome,
-            testsuite,
-            failure_message,
-            filename,
-            build_url,
-            computed_name,
-        }
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "({}, {}, {}, {:?}, {}, {:?}, {:?}, {:?})",
-            self.name,
-            self.classname,
-            self.outcome,
-            self.duration,
-            self.testsuite,
-            self.failure_message,
-            self.filename,
-            self.computed_name,
-        )
-    }
-
-    fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
-        match op {
-            CompareOp::Eq => Ok(self.name == other.name
-                && self.classname == other.classname
-                && self.outcome == other.outcome
-                && self.duration == other.duration
-                && self.testsuite == other.testsuite
-                && self.failure_message == other.failure_message
-                && self.filename == other.filename
-                && self.computed_name == other.computed_name),
-            _ => todo!(),
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, std::convert::Infallible> {
+        match self {
+            Outcome::Pass => Ok("pass".into_pyobject(py)?),
+            Outcome::Failure => Ok("failure".into_pyobject(py)?),
+            Outcome::Skip => Ok("skip".into_pyobject(py)?),
+            Outcome::Error => Ok("error".into_pyobject(py)?),
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[pyclass(eq, eq_int)]
+impl<'py> FromPyObject<'py> for Outcome {
+    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
+        let s = ob.extract::<&str>()?;
+        match s {
+            "pass" => Ok(Outcome::Pass),
+            "failure" => Ok(Outcome::Failure),
+            "skip" => Ok(Outcome::Skip),
+            "error" => Ok(Outcome::Error),
+            _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Invalid outcome: {}",
+                s
+            ))),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, PartialEq)]
 pub enum Framework {
     Pytest,
     Vitest,
@@ -196,61 +79,95 @@ pub enum Framework {
     PHPUnit,
 }
 
-#[pymethods]
-impl Framework {
-    fn __str__(&self) -> &str {
-        match &self {
-            Framework::Pytest => "Pytest",
-            Framework::Vitest => "Vitest",
-            Framework::Jest => "Jest",
-            Framework::PHPUnit => "PHPUnit",
+impl<'py> IntoPyObject<'py> for Framework {
+    type Target = PyString;
+    type Output = Bound<'py, Self::Target>;
+    type Error = std::convert::Infallible;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        match self {
+            Framework::Pytest => Ok("Pytest".into_pyobject(py)?),
+            Framework::Vitest => Ok("Vitest".into_pyobject(py)?),
+            Framework::Jest => Ok("Jest".into_pyobject(py)?),
+            Framework::PHPUnit => Ok("PHPUnit".into_pyobject(py)?),
         }
     }
 }
 
-impl Display for Framework {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self {
-            Framework::Pytest => write!(f, "Pytest"),
-            Framework::Vitest => write!(f, "Vitest"),
-            Framework::Jest => write!(f, "Jest"),
-            Framework::PHPUnit => write!(f, "PHPUnit"),
+impl<'py> FromPyObject<'py> for Framework {
+    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
+        let s = ob.extract::<&str>()?;
+        match s {
+            "Pytest" => Ok(Framework::Pytest),
+            "Vitest" => Ok(Framework::Vitest),
+            "Jest" => Ok(Framework::Jest),
+            "PHPUnit" => Ok(Framework::PHPUnit),
+            _ => Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Invalid outcome: {}",
+                s
+            ))),
         }
     }
 }
 
-#[derive(Clone, Debug)]
-#[pyclass]
-pub struct ParsingInfo {
-    #[pyo3(get, set)]
-    pub framework: Option<Framework>,
-    #[pyo3(get, set)]
-    pub testruns: Vec<Testrun>,
+// i can't seem to get  pyo3(from_item_all) to work when IntoPyObject is also being derived
+#[derive(IntoPyObject, FromPyObject, Clone, Debug, Serialize, PartialEq)]
+pub struct Testrun {
+    #[pyo3(item)]
+    pub name: String,
+    #[pyo3(item)]
+    pub classname: String,
+    #[pyo3(item)]
+    pub duration: Option<f64>,
+    #[pyo3(item)]
+    pub outcome: Outcome,
+    #[pyo3(item)]
+    pub testsuite: String,
+    #[pyo3(item)]
+    pub failure_message: Option<String>,
+    #[pyo3(item)]
+    pub filename: Option<String>,
+    #[pyo3(item)]
+    pub build_url: Option<String>,
+    #[pyo3(item)]
+    pub computed_name: Option<String>,
 }
 
-#[pymethods]
-impl ParsingInfo {
-    #[new]
-    #[pyo3(signature = (framework, testruns))]
-    fn new(framework: Option<Framework>, testruns: Vec<Testrun>) -> Self {
-        Self {
-            framework,
-            testruns,
-        }
-    }
-
-    fn __repr__(&self) -> String {
-        format!("({:?}, {:?})", self.framework, self.testruns)
-    }
-
-    fn __richcmp__(&self, other: &Self, op: CompareOp) -> PyResult<bool> {
-        match op {
-            CompareOp::Eq => {
-                Ok(self.framework == other.framework && self.testruns == other.testruns)
+impl Testrun {
+    pub fn framework(&self) -> Option<Framework> {
+        for (name, framework) in FRAMEWORKS {
+            if check_substring_before_word_boundary(&self.testsuite, name) {
+                return Some(framework);
             }
-            _ => todo!(),
         }
+
+        for (extension, framework) in EXTENSIONS {
+            if check_substring_before_word_boundary(&self.classname, extension)
+                || check_substring_before_word_boundary(&self.name, extension)
+            {
+                return Some(framework);
+            }
+
+            if let Some(message) = &self.failure_message {
+                if check_substring_before_word_boundary(message, extension) {
+                    return Some(framework);
+                }
+            }
+
+            if let Some(filename) = &self.filename {
+                if check_substring_before_word_boundary(filename, extension) {
+                    return Some(framework);
+                }
+            }
+        }
+        None
     }
+}
+
+#[derive(Clone, Debug, Serialize, IntoPyObject)]
+pub struct ParsingInfo {
+    pub framework: Option<Framework>,
+    pub testruns: Vec<Testrun>,
 }
 
 #[cfg(test)]
@@ -282,7 +199,7 @@ mod tests {
             build_url: None,
             computed_name: None,
         };
-        assert_eq!(t.framework(), Some(Framework::Pytest));
+        assert_eq!(t.framework(), Some(Framework::Pytest))
     }
 
     #[test]
@@ -298,7 +215,7 @@ mod tests {
             build_url: None,
             computed_name: None,
         };
-        assert_eq!(t.framework(), Some(Framework::Pytest));
+        assert_eq!(t.framework(), Some(Framework::Pytest))
     }
 
     #[test]
@@ -314,7 +231,7 @@ mod tests {
             build_url: None,
             computed_name: None,
         };
-        assert_eq!(t.framework(), Some(Framework::Pytest));
+        assert_eq!(t.framework(), Some(Framework::Pytest))
     }
 
     #[test]
@@ -330,7 +247,7 @@ mod tests {
             build_url: None,
             computed_name: None,
         };
-        assert_eq!(t.framework(), Some(Framework::Pytest));
+        assert_eq!(t.framework(), Some(Framework::Pytest))
     }
 
     #[test]
@@ -346,7 +263,7 @@ mod tests {
             build_url: None,
             computed_name: None,
         };
-        assert_eq!(t.framework(), Some(Framework::Pytest));
+        assert_eq!(t.framework(), Some(Framework::Pytest))
     }
 
     #[test]
@@ -362,6 +279,6 @@ mod tests {
             build_url: Some("https://example.com/build_url".to_string()),
             computed_name: None,
         };
-        assert_eq!(t.framework(), Some(Framework::Pytest));
+        assert_eq!(t.framework(), Some(Framework::Pytest))
     }
 }

@@ -1,3 +1,4 @@
+use anyhow::Context;
 use pyo3::prelude::*;
 use std::collections::HashSet;
 
@@ -7,7 +8,6 @@ use quick_xml::reader::Reader;
 
 use crate::compute_name::{compute_name, unescape_str};
 use crate::testrun::{check_testsuites_name, Framework, Outcome, ParsingInfo, Testrun};
-use crate::ParserError;
 
 #[derive(Default)]
 struct RelevantAttrs {
@@ -21,8 +21,7 @@ struct RelevantAttrs {
 fn get_relevant_attrs(attributes: Attributes) -> PyResult<RelevantAttrs> {
     let mut rel_attrs = RelevantAttrs::default();
     for attribute in attributes {
-        let attribute = attribute
-            .map_err(|e| ParserError::new_err(format!("Error parsing attribute: {}", e)))?;
+        let attribute = attribute.context("Error parsing attribute")?;
         let bytes = attribute.value.into_owned();
         let value = String::from_utf8(bytes)?;
         match attribute.key.into_inner() {
@@ -39,7 +38,7 @@ fn get_relevant_attrs(attributes: Attributes) -> PyResult<RelevantAttrs> {
 fn get_attribute(e: &BytesStart, name: &str) -> PyResult<Option<String>> {
     let attr = if let Some(message) = e
         .try_get_attribute(name)
-        .map_err(|e| ParserError::new_err(format!("Error parsing attribute: {}", e)))?
+        .context("Error parsing attribute")?
     {
         Some(String::from_utf8(message.value.to_vec())?)
     } else {
@@ -57,9 +56,7 @@ fn populate(
 ) -> PyResult<(Testrun, Option<Framework>)> {
     let classname = rel_attrs.classname.unwrap_or_default();
 
-    let name = rel_attrs
-        .name
-        .ok_or_else(|| ParserError::new_err("No name found"))?;
+    let name = rel_attrs.name.context("No name found")?;
 
     let duration = rel_attrs
         .time
@@ -86,18 +83,6 @@ fn populate(
     };
 
     Ok((t, framework))
-}
-
-#[pyfunction]
-pub fn parse_junit_xml(file_bytes: &[u8]) -> PyResult<ParsingInfo> {
-    let mut reader = Reader::from_reader(file_bytes);
-    reader.config_mut().trim_text(true);
-    let reader_result = use_reader(&mut reader, None).map_err(|e| {
-        let pos = reader.buffer_position();
-        let (line, col) = get_position_info(file_bytes, pos.try_into().unwrap());
-        ParserError::new_err(format!("Error at {}:{}: {}", line, col, e))
-    })?;
-    Ok(reader_result)
 }
 
 pub fn get_position_info(input: &[u8], byte_offset: usize) -> (usize, usize) {
@@ -136,13 +121,9 @@ pub fn use_reader(
 
     let mut buf = Vec::new();
     loop {
-        let event = reader.read_event_into(&mut buf).map_err(|e| {
-            ParserError::new_err(format!(
-                "Error parsing XML at position: {} {:?}",
-                reader.buffer_position(),
-                e
-            ))
-        })?;
+        let event = reader
+            .read_event_into(&mut buf)
+            .context("Error parsing XML")?;
         match event {
             Event::Eof => {
                 break;
@@ -167,13 +148,13 @@ pub fn use_reader(
                 b"skipped" => {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
+                        .context("Error accessing saved testrun")?;
                     testrun.outcome = Outcome::Skip;
                 }
                 b"error" => {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
+                        .context("Error accessing saved testrun")?;
                     testrun.outcome = Outcome::Error;
 
                     testrun.failure_message = get_attribute(&e, "message")?
@@ -184,7 +165,7 @@ pub fn use_reader(
                 b"failure" => {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
+                        .context("Error accessing saved testrun")?;
                     testrun.outcome = Outcome::Failure;
 
                     testrun.failure_message = get_attribute(&e, "message")?
@@ -204,11 +185,9 @@ pub fn use_reader(
             },
             Event::End(e) => match e.name().as_ref() {
                 b"testcase" => {
-                    let testrun = saved_testrun.take().ok_or_else(|| {
-                        ParserError::new_err(
-                            "Met testcase closing tag without first meeting testcase opening tag",
-                        )
-                    })?;
+                    let testrun = saved_testrun.take().context(
+                        "Met testcase closing tag without first meeting testcase opening tag",
+                    )?;
                     testruns.push(testrun);
                 }
                 b"failure" => in_failure = false,
@@ -239,7 +218,7 @@ pub fn use_reader(
                 b"failure" => {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
+                        .context("Error accessing saved testrun")?;
                     testrun.outcome = Outcome::Failure;
 
                     testrun.failure_message = get_attribute(&e, "message")?
@@ -248,13 +227,13 @@ pub fn use_reader(
                 b"skipped" => {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
+                        .context("Error accessing saved testrun")?;
                     testrun.outcome = Outcome::Skip;
                 }
                 b"error" => {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
+                        .context("Error accessing saved testrun")?;
                     testrun.outcome = Outcome::Error;
 
                     testrun.failure_message = get_attribute(&e, "message")?
@@ -266,7 +245,7 @@ pub fn use_reader(
                 if in_failure || in_error {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or_else(|| ParserError::new_err("Error accessing saved testrun"))?;
+                        .context("Error accessing saved testrun")?;
 
                     xml_failure_message.inplace_trim_end();
                     xml_failure_message.inplace_trim_start();

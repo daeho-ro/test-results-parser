@@ -1,0 +1,7 @@
+---
+source: src/raw_upload.rs
+expression: results
+input_file: tests/testsuites.xml
+---
+- framework: ~
+  testruns: []

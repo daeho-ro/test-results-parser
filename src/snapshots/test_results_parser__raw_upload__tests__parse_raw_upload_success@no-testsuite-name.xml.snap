@@ -1,0 +1,16 @@
+---
+source: src/raw_upload.rs
+expression: results
+input_file: tests/no-testsuite-name.xml
+---
+- framework: ~
+  testruns:
+    - name: a_unit_test
+      classname: a_unit_test
+      duration: 33.4734
+      outcome: Failure
+      testsuite: ""
+      failure_message: Failed
+      filename: ~
+      build_url: ~
+      computed_name: ~

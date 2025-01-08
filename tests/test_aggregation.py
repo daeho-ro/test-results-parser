@@ -1,7 +1,10 @@
 from datetime import datetime, timezone
+import json
+import base64
+import zlib
 
 from test_results_parser import (
-    parse_junit_xml,
+    parse_raw_upload,
     AggregationReader,
     BinaryFormatWriter,
 )
@@ -9,7 +12,17 @@ from test_results_parser import (
 def test_aggregation():
     with open("./tests/junit.xml", "br") as f:
         junit_file = f.read()
-    parsed = parse_junit_xml(junit_file)
+
+        raw_upload = {
+            "test_results_files": [
+                {
+                    "filename": "test_results.json",
+                    "data": base64.b64encode(zlib.compress(junit_file)).decode("utf-8"),
+                }
+            ]
+        }
+
+    parsed, _ = parse_raw_upload(json.dumps(raw_upload).encode("utf-8"))
 
     now = int(datetime.now(timezone.utc).timestamp())
 
@@ -18,7 +31,7 @@ def test_aggregation():
         timestamp=now,
         commit_hash="e9fcd08652d091fa0c8d28e323c24fb0f4acf249",
         flags=["upload", "flags"],
-        testruns=parsed.testruns,
+        testruns=parsed[0]["testruns"],
     )
 
     serialized = writer.serialize()
