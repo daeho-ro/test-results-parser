@@ -113,9 +113,10 @@ mod tests {
         let base64_data = BASE64_STANDARD.encode(compressed);
         let upload_json = format!(
             r#"{{"network": [], "test_results_files": [{{"filename": "{}", "format": "base64+compressed", "data": "{}"}}]}}"#,
-            filename, base64_data,
+            filename.split('/').last().unwrap(),
+            base64_data,
         );
-        upload_json.as_bytes().to_vec()
+        upload_json.into()
     }
 
     #[test]

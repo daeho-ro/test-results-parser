@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 use pyo3::prelude::*;
 use std::collections::HashSet;
 
@@ -148,13 +148,13 @@ pub fn use_reader(
                 b"skipped" => {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or_else(|| anyhow!("Error accessing saved testrun"))?;
+                        .context("Error accessing saved testrun")?;
                     testrun.outcome = Outcome::Skip;
                 }
                 b"error" => {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or_else(|| anyhow!("Error accessing saved testrun"))?;
+                        .context("Error accessing saved testrun")?;
                     testrun.outcome = Outcome::Error;
 
                     testrun.failure_message = get_attribute(&e, "message")?
@@ -165,7 +165,7 @@ pub fn use_reader(
                 b"failure" => {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or_else(|| anyhow!("Error accessing saved testrun"))?;
+                        .context("Error accessing saved testrun")?;
                     testrun.outcome = Outcome::Failure;
 
                     testrun.failure_message = get_attribute(&e, "message")?
@@ -185,11 +185,9 @@ pub fn use_reader(
             },
             Event::End(e) => match e.name().as_ref() {
                 b"testcase" => {
-                    let testrun = saved_testrun.take().ok_or_else(|| {
-                        anyhow!(
-                            "Met testcase closing tag without first meeting testcase opening tag",
-                        )
-                    })?;
+                    let testrun = saved_testrun.take().context(
+                        "Met testcase closing tag without first meeting testcase opening tag",
+                    )?;
                     testruns.push(testrun);
                 }
                 b"failure" => in_failure = false,
@@ -220,7 +218,7 @@ pub fn use_reader(
                 b"failure" => {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or_else(|| anyhow!("Error accessing saved testrun"))?;
+                        .context("Error accessing saved testrun")?;
                     testrun.outcome = Outcome::Failure;
 
                     testrun.failure_message = get_attribute(&e, "message")?
@@ -229,13 +227,13 @@ pub fn use_reader(
                 b"skipped" => {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or_else(|| anyhow!("Error accessing saved testrun"))?;
+                        .context("Error accessing saved testrun")?;
                     testrun.outcome = Outcome::Skip;
                 }
                 b"error" => {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or_else(|| anyhow!("Error accessing saved testrun"))?;
+                        .context("Error accessing saved testrun")?;
                     testrun.outcome = Outcome::Error;
 
                     testrun.failure_message = get_attribute(&e, "message")?
@@ -247,7 +245,7 @@ pub fn use_reader(
                 if in_failure || in_error {
                     let testrun = saved_testrun
                         .as_mut()
-                        .ok_or_else(|| anyhow!("Error accessing saved testrun"))?;
+                        .context("Error accessing saved testrun")?;
 
                     xml_failure_message.inplace_trim_end();
                     xml_failure_message.inplace_trim_start();

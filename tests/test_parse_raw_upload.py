@@ -3,9 +3,8 @@ import base64
 import zlib
 import json
 from test_results_parser import parse_raw_upload
-
 class TestParsers:
-    def test_junit(self):
+    def test_junit(self, snapshot):
         with open("tests/junit.xml", "b+r") as f:
             file_bytes = f.read()
             raw_upload = {
@@ -28,49 +27,10 @@ class TestParsers:
 
             readable_files = bytes(readable_files_bytes)
 
-            assert readable_files == f"""# path=junit.xml\n{file_bytes.decode()}\n<<<<<< EOF\n""".encode()
-            
 
-            assert parsing_infos[0]["framework"] == "Pytest"
-            assert parsing_infos[0]["testruns"] == [
-                {
-                    "name": "test_junit[junit.xml--True]",
-                    "classname": "tests.test_parsers.TestParsers",
-                    "duration": 0.001,
-                    "outcome": "failure",
-                    "testsuite": "pytest",
-                    "failure_message": """self = <test_parsers.TestParsers object at 0x102182d10>, filename = 'junit.xml', expected = '', check = True
+            assert snapshot("bin") == readable_files
+            assert snapshot("json") == parsing_infos
 
-    @pytest.mark.parametrize(
-        "filename,expected,check",
-        [("junit.xml", "", True), ("jest-junit.xml", "", False)],
-    )
-    def test_junit(self, filename, expected, check):
-        with open(filename) as f:
-            junit_string = f.read()
-            res = parse_junit_xml(junit_string)
-            print(res)
-            if check:
->               assert res == expected
-E               AssertionError: assert [{'duration': '0.010', 'name': 'tests.test_parsers.TestParsers.test_junit[junit.xml-]', 'outcome': 'failure'}, {'duration': '0.063', 'name': 'tests.test_parsers.TestParsers.test_junit[jest-junit.xml-]', 'outcome': 'pass'}] == ''
-
-tests/test_parsers.py:16: AssertionError""",
-                    "filename": None,
-                    "build_url": None,
-                    "computed_name": "tests.test_parsers.TestParsers::test_junit[junit.xml--True]",
-                },
-                {
-                    "name": "test_junit[jest-junit.xml--False]",
-                    "classname": "tests.test_parsers.TestParsers",
-                    "duration": 0.064,
-                    "outcome": "pass",
-                    "testsuite": "pytest",
-                    "failure_message": None,
-                    "filename": None,
-                    "build_url": None,
-                    "computed_name": "tests.test_parsers.TestParsers::test_junit[jest-junit.xml--False]",
-                }
-            ]
 
 
     def test_json_error(self):

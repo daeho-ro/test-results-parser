@@ -3,4 +3,4 @@ source: src/raw_upload.rs
 expression: e.to_string()
 input_file: tests/error.xml
 ---
-"Error parsing JUnit XML in /Users/josephsawaya/dev/codecov/test-results-parser/tests/error.xml at 8:24"
+"Error parsing JUnit XML in error.xml at 8:24"
