@@ -18,7 +18,7 @@ fn check_substring_before_word_boundary(string: &str, substring: &str) -> bool {
         return suffix
             .chars()
             .next()
-            .map_or(true, |first_char| !first_char.is_alphanumeric());
+            .is_none_or(|first_char| !first_char.is_alphanumeric());
     }
     false
 }
