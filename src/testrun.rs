@@ -130,7 +130,7 @@ pub struct Testrun {
     #[pyo3(item)]
     pub build_url: Option<String>,
     #[pyo3(item)]
-    pub computed_name: Option<String>,
+    pub computed_name: String,
 }
 
 impl Testrun {
@@ -197,7 +197,7 @@ mod tests {
             failure_message: None,
             filename: None,
             build_url: None,
-            computed_name: None,
+            computed_name: "".to_string(),
         };
         assert_eq!(t.framework(), Some(Framework::Pytest))
     }
@@ -213,7 +213,7 @@ mod tests {
             failure_message: None,
             filename: Some(".py".to_string()),
             build_url: None,
-            computed_name: None,
+            computed_name: "".to_string(),
         };
         assert_eq!(t.framework(), Some(Framework::Pytest))
     }
@@ -229,7 +229,7 @@ mod tests {
             failure_message: None,
             filename: None,
             build_url: None,
-            computed_name: None,
+            computed_name: "".to_string(),
         };
         assert_eq!(t.framework(), Some(Framework::Pytest))
     }
@@ -245,7 +245,7 @@ mod tests {
             failure_message: None,
             filename: None,
             build_url: None,
-            computed_name: None,
+            computed_name: "".to_string(),
         };
         assert_eq!(t.framework(), Some(Framework::Pytest))
     }
@@ -261,7 +261,7 @@ mod tests {
             failure_message: Some(".py".to_string()),
             filename: None,
             build_url: None,
-            computed_name: None,
+            computed_name: "".to_string(),
         };
         assert_eq!(t.framework(), Some(Framework::Pytest))
     }
@@ -277,7 +277,7 @@ mod tests {
             failure_message: Some(".py".to_string()),
             filename: None,
             build_url: Some("https://example.com/build_url".to_string()),
-            computed_name: None,
+            computed_name: "".to_string(),
         };
         assert_eq!(t.framework(), Some(Framework::Pytest))
     }
