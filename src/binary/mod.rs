@@ -32,7 +32,7 @@ mod tests {
             failure_message: None,
             filename: None,
             build_url: None,
-            computed_name: None,
+            computed_name: "".to_string(),
         }
     }
 

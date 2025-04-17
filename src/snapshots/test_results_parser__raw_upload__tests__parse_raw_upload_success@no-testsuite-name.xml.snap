@@ -13,4 +13,4 @@ input_file: tests/no-testsuite-name.xml
       failure_message: Failed
       filename: ~
       build_url: ~
-      computed_name: ~
+      computed_name: "a_unit_test::a_unit_test"

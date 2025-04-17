@@ -9,12 +9,10 @@ class Testrun(TypedDict):
     failure_message: str | None
     filename: str | None
     build_url: str | None
-    computed_name: str | None
-
+    computed_name: str
 
 class ParsingInfo(TypedDict):
-    framework: Literal["Pytest", "Jest", "Vitest", "PHPUnit"]
+    framework: Literal["Pytest", "Jest", "Vitest", "PHPUnit"] | None
     testruns: list[Testrun]
-
 
 def parse_raw_upload(raw_upload_bytes: bytes) -> tuple[list[ParsingInfo], bytes]: ...

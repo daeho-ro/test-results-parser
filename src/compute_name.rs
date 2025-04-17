@@ -56,21 +56,36 @@ pub fn unescape_str(s: &str) -> Cow<'_, str> {
 pub fn compute_name(
     classname: &str,
     name: &str,
-    framework: Framework,
+    framework: Option<Framework>,
     filename: Option<&str>,
     network: Option<&HashSet<String>>,
 ) -> String {
     let name = unescape_str(name);
     let classname = unescape_str(classname);
+    match framework {
+        Some(f) => compute_name_framework(&classname, &name, f, filename, network),
+        None => {
+            format!("{}::{}", classname, name)
+        }
+    }
+}
+
+pub fn compute_name_framework(
+    classname: &str,
+    name: &str,
+    framework: Framework,
+    filename: Option<&str>,
+    network: Option<&HashSet<String>>,
+) -> String {
     let filename = filename.map(|f| unescape_str(f));
 
     match framework {
         Framework::Jest => name.to_string(),
         Framework::Pytest => {
             if let Some(filename) = filename {
-                compute_pytest_using_filename(&classname, &name, &filename)
+                compute_pytest_using_filename(classname, name, &filename)
             } else if let Some(network) = network {
-                compute_pytest_using_network(&classname, &name, network)
+                compute_pytest_using_network(classname, name, network)
             } else {
                 format!("{}::{}", classname, name)
             }
@@ -91,7 +106,7 @@ mod tests {
     #[test]
     fn test_compute_name() {
         assert_eq!(
-            compute_name("a.b.c", "d", Framework::Pytest, None, None),
+            compute_name("a.b.c", "d", Some(Framework::Pytest), None, None),
             "a.b.c::d"
         );
     }
@@ -99,7 +114,13 @@ mod tests {
     #[test]
     fn test_compute_name_with_filename() {
         assert_eq!(
-            compute_name("a.b.c", "d", Framework::Pytest, Some("a/b/c.py"), None),
+            compute_name(
+                "a.b.c",
+                "d",
+                Some(Framework::Pytest),
+                Some("a/b/c.py"),
+                None
+            ),
             "a/b/c.py::d"
         );
     }
@@ -107,7 +128,7 @@ mod tests {
     #[test]
     fn test_compute_name_with_filename_classname() {
         assert_eq!(
-            compute_name("a.b.c", "d", Framework::Pytest, Some("a/b.py"), None),
+            compute_name("a.b.c", "d", Some(Framework::Pytest), Some("a/b.py"), None),
             "a/b.py::c::d"
         );
     }
@@ -116,7 +137,7 @@ mod tests {
     fn test_compute_name_with_network() {
         let network = ["a/b/c.py"].iter().map(|e| e.to_string()).collect();
         assert_eq!(
-            compute_name("a.b.c", "d", Framework::Pytest, None, Some(&network)),
+            compute_name("a.b.c", "d", Some(Framework::Pytest), None, Some(&network)),
             "a/b/c.py::d"
         );
     }
@@ -125,7 +146,7 @@ mod tests {
     fn test_compute_name_with_network_actual_classname() {
         let network = ["a/b.py"].iter().map(|e| e.to_string()).collect();
         assert_eq!(
-            compute_name("a.b.c", "d", Framework::Pytest, None, Some(&network)),
+            compute_name("a.b.c", "d", Some(Framework::Pytest), None, Some(&network)),
             "a/b.py::c::d"
         );
     }
@@ -134,7 +155,7 @@ mod tests {
     fn test_compute_name_with_network_actual_classname_no_match() {
         let network = ["d.py"].iter().map(|e| e.to_string()).collect();
         assert_eq!(
-            compute_name("a.b.c", "d", Framework::Pytest, None, Some(&network)),
+            compute_name("a.b.c", "d", Some(Framework::Pytest), None, Some(&network)),
             "a.b.c::d"
         );
     }
@@ -145,7 +166,7 @@ mod tests {
             compute_name(
                 "it does the thing &gt; it does the thing",
                 "it does the thing &gt; it does the thing",
-                Framework::Jest,
+                Some(Framework::Jest),
                 None,
                 None
             ),
@@ -159,7 +180,7 @@ mod tests {
             compute_name(
                 "tests/thing.js",
                 "it does the thing &gt; it does the thing",
-                Framework::Vitest,
+                Some(Framework::Vitest),
                 None,
                 None
             ),
@@ -170,8 +191,19 @@ mod tests {
     #[test]
     fn test_compute_name_phpunit() {
         assert_eq!(
-            compute_name("class.className", "test1", Framework::PHPUnit, None, None),
+            compute_name(
+                "class.className",
+                "test1",
+                Some(Framework::PHPUnit),
+                None,
+                None
+            ),
             "class.className::test1"
         );
+    }
+
+    #[test]
+    fn test_compute_name_none() {
+        assert_eq!(compute_name("a.b.c", "d", None, None, None), "a.b.c::d");
     }
 }

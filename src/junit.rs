@@ -73,14 +73,18 @@ fn populate(
         failure_message: None,
         filename: rel_attrs.file,
         build_url: None,
-        computed_name: None,
+        computed_name: "".to_string(),
     };
 
     let framework = framework.or_else(|| t.framework());
-    if let Some(f) = framework {
-        let computed_name = compute_name(&t.classname, &t.name, f, t.filename.as_deref(), network);
-        t.computed_name = Some(computed_name);
-    };
+    let computed_name = compute_name(
+        &t.classname,
+        &t.name,
+        framework,
+        t.filename.as_deref(),
+        network,
+    );
+    t.computed_name = computed_name;
 
     Ok((t, framework))
 }
