@@ -2,7 +2,7 @@ use anyhow::Context;
 use pyo3::prelude::*;
 use std::collections::HashSet;
 
-use quick_xml::events::attributes::Attributes;
+use quick_xml::events::attributes::{Attribute, Attributes};
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::reader::Reader;
 
@@ -17,18 +17,22 @@ struct RelevantAttrs {
     file: Option<String>,
 }
 
+fn convert_attribute(attribute: Attribute) -> Option<String> {
+    let bytes = attribute.value.into_owned();
+    let value = String::from_utf8(bytes).ok()?;
+    Some(value)
+}
+
 // from https://gist.github.com/scott-codecov/311c174ecc7de87f7d7c50371c6ef927#file-cobertura-rs-L18-L31
 fn get_relevant_attrs(attributes: Attributes) -> PyResult<RelevantAttrs> {
     let mut rel_attrs = RelevantAttrs::default();
     for attribute in attributes {
         let attribute = attribute.context("Error parsing attribute")?;
-        let bytes = attribute.value.into_owned();
-        let value = String::from_utf8(bytes)?;
         match attribute.key.into_inner() {
-            b"time" => rel_attrs.time = Some(value),
-            b"classname" => rel_attrs.classname = Some(value),
-            b"name" => rel_attrs.name = Some(value),
-            b"file" => rel_attrs.file = Some(value),
+            b"time" => rel_attrs.time = convert_attribute(attribute),
+            b"classname" => rel_attrs.classname = convert_attribute(attribute),
+            b"name" => rel_attrs.name = convert_attribute(attribute),
+            b"file" => rel_attrs.file = convert_attribute(attribute),
             _ => {}
         }
     }
