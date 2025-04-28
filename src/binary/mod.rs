@@ -27,15 +27,19 @@ mod tests {
 
     fn test() -> Testrun {
         Testrun {
-            name: ValidatedString::from_str("abc").unwrap(),
-            classname: ValidatedString::from_str("").unwrap(),
+            name: "abc".into(),
+            classname: "".into(),
+            name: "abc".try_into().unwrap(),
+            classname: "".try_into().unwrap(),
             duration: Some(1.0),
             outcome: Outcome::Pass,
-            testsuite: ValidatedString::from_str("").unwrap(),
+            testsuite: "".into(),
+            testsuite: "".try_into().unwrap(),
             failure_message: None,
             filename: None,
             build_url: None,
-            computed_name: ValidatedString::from_str("").unwrap(),
+            computed_name: "".to_string(),
+            computed_name: "".try_into().unwrap(),
         }
     }
 
@@ -63,7 +67,8 @@ mod tests {
         test.duration = Some(2.0);
         session.insert(&test);
 
-        test.name = ValidatedString::from_str("def").unwrap();
+        test.name = "def".into();
+        test.name = "def".try_into().unwrap();
         test.outcome = Outcome::Skip;
         test.duration = Some(0.0);
         session.insert(&test);
@@ -97,7 +102,8 @@ mod tests {
         let mut session = writer.start_session(0, CommitHash::default(), &[]);
 
         session.insert(&test);
-        test.testsuite = ValidatedString::from_str("some testsuite").unwrap();
+        test.testsuite = "some testsuite".into();
+        test.testsuite = "some testsuite".try_into().unwrap();
         session.insert(&test);
 
         let mut buf = vec![];

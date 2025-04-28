@@ -191,15 +191,19 @@ mod tests {
     #[test]
     fn test_detect_framework_testsuite_name() {
         let t = Testrun {
-            classname: ValidatedString::from_str("").unwrap(),
-            name: ValidatedString::from_str("").unwrap(),
+            classname: "".to_string(),
+            name: "".to_string(),
+            classname: "".try_into().unwrap(),
+            name: "".try_into().unwrap(),
             duration: None,
             outcome: Outcome::Pass,
-            testsuite: ValidatedString::from_str("pytest").unwrap(),
+            testsuite: "pytest".to_string(),
+            testsuite: "pytest".try_into().unwrap(),
             failure_message: None,
             filename: None,
             build_url: None,
-            computed_name: ValidatedString::from_str("").unwrap(),
+            computed_name: "".to_string(),
+            computed_name: "".try_into().unwrap(),
         };
         assert_eq!(t.framework(), Some(Framework::Pytest))
     }
@@ -207,15 +211,20 @@ mod tests {
     #[test]
     fn test_detect_framework_filenames() {
         let t = Testrun {
-            classname: ValidatedString::from_str("").unwrap(),
-            name: ValidatedString::from_str("").unwrap(),
+            classname: "".to_string(),
+            name: "".to_string(),
+            classname: "".try_into().unwrap(),
+            name: "".try_into().unwrap(),
             duration: None,
             outcome: Outcome::Pass,
-            testsuite: ValidatedString::from_str("").unwrap(),
+            testsuite: "".to_string(),
+            testsuite: "".try_into().unwrap(),
             failure_message: None,
-            filename: Some(ValidatedString::from_str(".py").unwrap()),
+            filename: Some(".py".to_string()),
+            filename: Some(".py".try_into().unwrap()),
             build_url: None,
-            computed_name: ValidatedString::from_str("").unwrap(),
+            computed_name: "".to_string(),
+            computed_name: "".try_into().unwrap(),
         };
         assert_eq!(t.framework(), Some(Framework::Pytest))
     }
@@ -223,15 +232,19 @@ mod tests {
     #[test]
     fn test_detect_framework_example_classname() {
         let t = Testrun {
-            classname: ValidatedString::from_str(".py").unwrap(),
-            name: ValidatedString::from_str("").unwrap(),
+            classname: ".py".to_string(),
+            name: "".to_string(),
+            classname: ".py".try_into().unwrap(),
+            name: "".try_into().unwrap(),
             duration: None,
             outcome: Outcome::Pass,
-            testsuite: ValidatedString::from_str("").unwrap(),
+            testsuite: "".to_string(),
+            testsuite: "".try_into().unwrap(),
             failure_message: None,
             filename: None,
             build_url: None,
-            computed_name: ValidatedString::from_str("").unwrap(),
+            computed_name: "".to_string(),
+            computed_name: "".try_into().unwrap(),
         };
         assert_eq!(t.framework(), Some(Framework::Pytest))
     }
@@ -239,15 +252,19 @@ mod tests {
     #[test]
     fn test_detect_framework_example_name() {
         let t = Testrun {
-            classname: ValidatedString::from_str("").unwrap(),
-            name: ValidatedString::from_str(".py").unwrap(),
+            classname: "".to_string(),
+            name: ".py".to_string(),
+            classname: "".try_into().unwrap(),
+            name: ".py".try_into().unwrap(),
             duration: None,
             outcome: Outcome::Pass,
-            testsuite: ValidatedString::from_str("").unwrap(),
+            testsuite: "".to_string(),
+            testsuite: "".try_into().unwrap(),
             failure_message: None,
             filename: None,
             build_url: None,
-            computed_name: ValidatedString::from_str("").unwrap(),
+            computed_name: "".to_string(),
+            computed_name: "".try_into().unwrap(),
         };
         assert_eq!(t.framework(), Some(Framework::Pytest))
     }
@@ -255,15 +272,19 @@ mod tests {
     #[test]
     fn test_detect_framework_failure_messages() {
         let t = Testrun {
-            classname: ValidatedString::from_str("").unwrap(),
-            name: ValidatedString::from_str("").unwrap(),
+            classname: "".to_string(),
+            name: "".to_string(),
+            classname: "".try_into().unwrap(),
+            name: "".try_into().unwrap(),
             duration: None,
             outcome: Outcome::Pass,
-            testsuite: ValidatedString::from_str("").unwrap(),
+            testsuite: "".to_string(),
+            testsuite: "".try_into().unwrap(),
             failure_message: Some(".py".to_string()),
             filename: None,
             build_url: None,
-            computed_name: ValidatedString::from_str("").unwrap(),
+            computed_name: "".to_string(),
+            computed_name: "".try_into().unwrap(),
         };
         assert_eq!(t.framework(), Some(Framework::Pytest))
     }
@@ -271,15 +292,19 @@ mod tests {
     #[test]
     fn test_detect_build_url() {
         let t = Testrun {
-            classname: ValidatedString::from_str("").unwrap(),
-            name: ValidatedString::from_str("").unwrap(),
+            classname: "".to_string(),
+            name: "".to_string(),
+            classname: "".try_into().unwrap(),
+            name: "".try_into().unwrap(),
             duration: None,
             outcome: Outcome::Pass,
-            testsuite: ValidatedString::from_str("").unwrap(),
+            testsuite: "".to_string(),
+            testsuite: "".try_into().unwrap(),
             failure_message: Some(".py".to_string()),
             filename: None,
             build_url: Some("https://example.com/build_url".to_string()),
-            computed_name: ValidatedString::from_str("").unwrap(),
+            computed_name: "".to_string(),
+            computed_name: "".try_into().unwrap(),
         };
         assert_eq!(t.framework(), Some(Framework::Pytest))
     }

@@ -15,6 +15,13 @@ struct RelevantAttrs {
     classname: Option<ValidatedString>,
     name: Option<ValidatedString>,
     time: Option<String>,
+    file: Option<String>,
+}
+
+fn convert_attribute(attribute: Attribute) -> Option<String> {
+    let bytes = attribute.value.into_owned();
+    let value = String::from_utf8(bytes).ok()?;
+    Some(value)
     file: Option<ValidatedString>,
 }
 
@@ -25,9 +32,8 @@ fn convert_attribute(attribute: Attribute) -> Result<String> {
 }
 
 fn validate_attribute(attribute: Attribute) -> Result<ValidatedString> {
-    let bytes = attribute.value.into_owned();
-    let value = String::from_utf8(bytes).context("Error converting attribute to string")?;
-    ValidatedString::from_string(value).context("Error validating attribute")
+    ValidatedString::from_string(convert_attribute(attribute)?)
+        .context("Error validating attribute")
 }
 
 // from https://gist.github.com/scott-codecov/311c174ecc7de87f7d7c50371c6ef927#file-cobertura-rs-L18-L31
@@ -46,7 +52,7 @@ fn get_relevant_attrs(attributes: Attributes) -> PyResult<RelevantAttrs> {
     Ok(rel_attrs)
 }
 
-fn get_attribute(e: &BytesStart, name: &str) -> PyResult<Option<String>> {
+fn get_attribute(e: &BytesStart, name: &str) -> Result<Option<String>> {
     let attr = if let Some(message) = e
         .try_get_attribute(name)
         .context("Error parsing attribute")?
@@ -65,9 +71,11 @@ fn populate(
     framework: Option<Framework>,
     network: Option<&HashSet<String>>,
 ) -> PyResult<(Testrun, Option<Framework>)> {
+    let classname = rel_attrs.classname.unwrap_or_default();
+) -> Result<(Testrun, Option<Framework>)> {
     let classname = rel_attrs
         .classname
-        .unwrap_or_else(|| ValidatedString::from_string("".to_string()).unwrap());
+        .unwrap_or_else(|| ValidatedString::default());
 
     let name = rel_attrs.name.context("No name found")?;
 
@@ -86,7 +94,10 @@ fn populate(
         failure_message: None,
         filename: rel_attrs.file,
         build_url: None,
-        computed_name: ValidatedString::from_str("").unwrap(),
+        computed_name: "".to_string(),
+        computed_name: ""
+            .try_into()
+            .context("Error converting computed name to ValidatedString")?,
     };
 
     let framework = framework.or_else(|| t.framework());
@@ -97,7 +108,9 @@ fn populate(
         t.filename.as_deref(),
         network,
     );
-    t.computed_name = ValidatedString::from_string(computed_name).unwrap();
+    t.computed_name = computed_name;
+    t.computed_name = ValidatedString::from_string(computed_name)
+        .context("Error converting computed name to ValidatedString")?;
 
     Ok((t, framework))
 }
@@ -191,9 +204,14 @@ pub fn use_reader(
                     in_failure = true;
                 }
                 b"testsuite" => {
+                    testsuite_names.push(get_attribute(&e, "name")?);
                     testsuite_names.push(
                         get_attribute(&e, "name")?
-                            .map(|s| ValidatedString::from_string(s).unwrap()),
+                            .map(|s| {
+                                ValidatedString::from_string(s)
+                                    .context("Error converting testsuite name to ValidatedString")
+                            })
+                            .transpose()?,
                     );
                     testsuite_times.push(get_attribute(&e, "time")?);
                 }

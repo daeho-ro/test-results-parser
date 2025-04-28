@@ -1,16 +1,16 @@
-use std::{convert::Infallible, ops::Deref};
+use std::ops::Deref;
 
 use anyhow::{Context, Result};
-use pyo3::{
-    types::{PyAnyMethods, PyString},
-    Bound, FromPyObject, IntoPyObject, PyAny, PyResult, Python,
-};
+use pyo3::{FromPyObject, IntoPyObject};
 use serde::{Deserialize, Serialize};
 
 // String that is validated to be less than 1000 characters
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize, FromPyObject, IntoPyObject,
+)]
 #[serde(transparent)]
+#[pyo3(transparent)]
 pub struct ValidatedString {
     value: String,
 }
@@ -22,10 +22,6 @@ impl ValidatedString {
         }
         Ok(Self { value })
     }
-
-    pub fn from_str(value: &str) -> Result<Self> {
-        Self::from_string(value.to_string())
-    }
 }
 
 impl Deref for ValidatedString {
@@ -36,31 +32,18 @@ impl Deref for ValidatedString {
     }
 }
 
-impl From<String> for ValidatedString {
-    fn from(value: String) -> Self {
-        Self::from_string(value).unwrap()
+impl TryFrom<String> for ValidatedString {
+    type Error = anyhow::Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::from_string(value).context("Error converting String to ValidatedString")
     }
 }
 
-impl From<&str> for ValidatedString {
-    fn from(value: &str) -> Self {
-        Self::from_str(value).unwrap()
-    }
-}
+impl TryFrom<&str> for ValidatedString {
+    type Error = anyhow::Error;
 
-impl<'py> IntoPyObject<'py> for ValidatedString {
-    type Target = PyString;
-    type Output = Bound<'py, Self::Target>;
-    type Error = Infallible;
-
-    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
-        Ok(PyString::new(py, &self.value))
-    }
-}
-
-impl FromPyObject<'_> for ValidatedString {
-    fn extract_bound(obj: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let s = obj.extract::<String>()?;
-        Ok(Self::from_string(s).context("Error converting PyString to ValidatedString")?)
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::from_string(value.to_string()).context("Error converting &str to ValidatedString")
     }
 }

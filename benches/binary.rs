@@ -175,15 +175,15 @@ fn create_random_testcases(
                     let name = Alphanumeric.sample_string(rng, name_len);
 
                     Testrun {
-                        name: name.into(),
-                        classname: "".into(),
+                        name: name.try_into().unwrap(),
+                        classname: "".try_into().unwrap(),
                         duration: Some(1.0),
                         outcome: Outcome::Pass,
-                        testsuite: "".into(),
+                        testsuite: "".try_into().unwrap(),
                         failure_message: None,
                         filename: None,
                         build_url: None,
-                        computed_name: "".into(),
+                        computed_name: "".try_into().unwrap(),
                     }
                 })
                 .collect();
