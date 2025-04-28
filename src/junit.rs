@@ -1,4 +1,4 @@
-use anyhow::Context;
+use anyhow::{Context, Result};
 use pyo3::prelude::*;
 use std::collections::HashSet;
 
@@ -8,19 +8,26 @@ use quick_xml::reader::Reader;
 
 use crate::compute_name::{compute_name, unescape_str};
 use crate::testrun::{check_testsuites_name, Framework, Outcome, ParsingInfo, Testrun};
+use crate::validated_string::ValidatedString;
 
 #[derive(Default)]
 struct RelevantAttrs {
-    classname: Option<String>,
-    name: Option<String>,
+    classname: Option<ValidatedString>,
+    name: Option<ValidatedString>,
     time: Option<String>,
-    file: Option<String>,
+    file: Option<ValidatedString>,
 }
 
-fn convert_attribute(attribute: Attribute) -> Option<String> {
+fn convert_attribute(attribute: Attribute) -> Result<String> {
     let bytes = attribute.value.into_owned();
-    let value = String::from_utf8(bytes).ok()?;
-    Some(value)
+    let value = String::from_utf8(bytes).context("Error converting attribute to string")?;
+    Ok(value)
+}
+
+fn validate_attribute(attribute: Attribute) -> Result<ValidatedString> {
+    let bytes = attribute.value.into_owned();
+    let value = String::from_utf8(bytes).context("Error converting attribute to string")?;
+    ValidatedString::from_string(value).context("Error validating attribute")
 }
 
 // from https://gist.github.com/scott-codecov/311c174ecc7de87f7d7c50371c6ef927#file-cobertura-rs-L18-L31
@@ -29,10 +36,10 @@ fn get_relevant_attrs(attributes: Attributes) -> PyResult<RelevantAttrs> {
     for attribute in attributes {
         let attribute = attribute.context("Error parsing attribute")?;
         match attribute.key.into_inner() {
-            b"time" => rel_attrs.time = convert_attribute(attribute),
-            b"classname" => rel_attrs.classname = convert_attribute(attribute),
-            b"name" => rel_attrs.name = convert_attribute(attribute),
-            b"file" => rel_attrs.file = convert_attribute(attribute),
+            b"time" => rel_attrs.time = Some(convert_attribute(attribute)?),
+            b"classname" => rel_attrs.classname = Some(validate_attribute(attribute)?),
+            b"name" => rel_attrs.name = Some(validate_attribute(attribute)?),
+            b"file" => rel_attrs.file = Some(validate_attribute(attribute)?),
             _ => {}
         }
     }
@@ -53,12 +60,14 @@ fn get_attribute(e: &BytesStart, name: &str) -> PyResult<Option<String>> {
 
 fn populate(
     rel_attrs: RelevantAttrs,
-    testsuite: String,
+    testsuite: ValidatedString,
     testsuite_time: Option<&str>,
     framework: Option<Framework>,
     network: Option<&HashSet<String>>,
 ) -> PyResult<(Testrun, Option<Framework>)> {
-    let classname = rel_attrs.classname.unwrap_or_default();
+    let classname = rel_attrs
+        .classname
+        .unwrap_or_else(|| ValidatedString::from_string("".to_string()).unwrap());
 
     let name = rel_attrs.name.context("No name found")?;
 
@@ -77,7 +86,7 @@ fn populate(
         failure_message: None,
         filename: rel_attrs.file,
         build_url: None,
-        computed_name: "".to_string(),
+        computed_name: ValidatedString::from_str("").unwrap(),
     };
 
     let framework = framework.or_else(|| t.framework());
@@ -88,7 +97,7 @@ fn populate(
         t.filename.as_deref(),
         network,
     );
-    t.computed_name = computed_name;
+    t.computed_name = ValidatedString::from_string(computed_name).unwrap();
 
     Ok((t, framework))
 }
@@ -124,7 +133,7 @@ pub fn use_reader(
     // every time we come across a testsuite element we update this vector:
     // if the testsuite element contains the time attribute append its value to this vec
     // else append a clone of the last value in the vec
-    let mut testsuite_names: Vec<Option<String>> = vec![];
+    let mut testsuite_names: Vec<Option<ValidatedString>> = vec![];
     let mut testsuite_times: Vec<Option<String>> = vec![];
 
     let mut buf = Vec::new();
@@ -182,7 +191,10 @@ pub fn use_reader(
                     in_failure = true;
                 }
                 b"testsuite" => {
-                    testsuite_names.push(get_attribute(&e, "name")?);
+                    testsuite_names.push(
+                        get_attribute(&e, "name")?
+                            .map(|s| ValidatedString::from_string(s).unwrap()),
+                    );
                     testsuite_times.push(get_attribute(&e, "time")?);
                 }
                 b"testsuites" => {

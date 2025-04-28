@@ -18,21 +18,24 @@ mod tests {
     use raw::CommitHash;
     use timestamps::DAY;
 
-    use crate::testrun::{Outcome, Testrun};
+    use crate::{
+        testrun::{Outcome, Testrun},
+        validated_string::ValidatedString,
+    };
 
     use super::*;
 
     fn test() -> Testrun {
         Testrun {
-            name: "abc".into(),
-            classname: "".into(),
+            name: ValidatedString::from_str("abc").unwrap(),
+            classname: ValidatedString::from_str("").unwrap(),
             duration: Some(1.0),
             outcome: Outcome::Pass,
-            testsuite: "".into(),
+            testsuite: ValidatedString::from_str("").unwrap(),
             failure_message: None,
             filename: None,
             build_url: None,
-            computed_name: "".to_string(),
+            computed_name: ValidatedString::from_str("").unwrap(),
         }
     }
 
@@ -60,7 +63,7 @@ mod tests {
         test.duration = Some(2.0);
         session.insert(&test);
 
-        test.name = "def".into();
+        test.name = ValidatedString::from_str("def").unwrap();
         test.outcome = Outcome::Skip;
         test.duration = Some(0.0);
         session.insert(&test);
@@ -94,7 +97,7 @@ mod tests {
         let mut session = writer.start_session(0, CommitHash::default(), &[]);
 
         session.insert(&test);
-        test.testsuite = "some testsuite".into();
+        test.testsuite = ValidatedString::from_str("some testsuite").unwrap();
         session.insert(&test);
 
         let mut buf = vec![];

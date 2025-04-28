@@ -175,7 +175,7 @@ fn create_random_testcases(
                     let name = Alphanumeric.sample_string(rng, name_len);
 
                     Testrun {
-                        name,
+                        name: name.into(),
                         classname: "".into(),
                         duration: Some(1.0),
                         outcome: Outcome::Pass,

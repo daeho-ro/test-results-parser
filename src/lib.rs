@@ -7,6 +7,7 @@ mod failure_message;
 mod junit;
 mod raw_upload;
 mod testrun;
+mod validated_string;
 
 pub use testrun::{Outcome, Testrun};
 
