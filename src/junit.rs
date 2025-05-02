@@ -15,13 +15,6 @@ struct RelevantAttrs {
     classname: Option<ValidatedString>,
     name: Option<ValidatedString>,
     time: Option<String>,
-    file: Option<String>,
-}
-
-fn convert_attribute(attribute: Attribute) -> Option<String> {
-    let bytes = attribute.value.into_owned();
-    let value = String::from_utf8(bytes).ok()?;
-    Some(value)
     file: Option<ValidatedString>,
 }
 
@@ -70,12 +63,8 @@ fn populate(
     testsuite_time: Option<&str>,
     framework: Option<Framework>,
     network: Option<&HashSet<String>>,
-) -> PyResult<(Testrun, Option<Framework>)> {
-    let classname = rel_attrs.classname.unwrap_or_default();
 ) -> Result<(Testrun, Option<Framework>)> {
-    let classname = rel_attrs
-        .classname
-        .unwrap_or_else(|| ValidatedString::default());
+    let classname = rel_attrs.classname.unwrap_or_default();
 
     let name = rel_attrs.name.context("No name found")?;
 
@@ -94,7 +83,6 @@ fn populate(
         failure_message: None,
         filename: rel_attrs.file,
         build_url: None,
-        computed_name: "".to_string(),
         computed_name: ""
             .try_into()
             .context("Error converting computed name to ValidatedString")?,
@@ -108,7 +96,6 @@ fn populate(
         t.filename.as_deref(),
         network,
     );
-    t.computed_name = computed_name;
     t.computed_name = ValidatedString::from_string(computed_name)
         .context("Error converting computed name to ValidatedString")?;
 
@@ -204,7 +191,6 @@ pub fn use_reader(
                     in_failure = true;
                 }
                 b"testsuite" => {
-                    testsuite_names.push(get_attribute(&e, "name")?);
                     testsuite_names.push(
                         get_attribute(&e, "name")?
                             .map(|s| {

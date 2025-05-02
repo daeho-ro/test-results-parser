@@ -18,27 +18,20 @@ mod tests {
     use raw::CommitHash;
     use timestamps::DAY;
 
-    use crate::{
-        testrun::{Outcome, Testrun},
-        validated_string::ValidatedString,
-    };
+    use crate::testrun::{Outcome, Testrun};
 
     use super::*;
 
     fn test() -> Testrun {
         Testrun {
-            name: "abc".into(),
-            classname: "".into(),
             name: "abc".try_into().unwrap(),
             classname: "".try_into().unwrap(),
             duration: Some(1.0),
             outcome: Outcome::Pass,
-            testsuite: "".into(),
             testsuite: "".try_into().unwrap(),
             failure_message: None,
             filename: None,
             build_url: None,
-            computed_name: "".to_string(),
             computed_name: "".try_into().unwrap(),
         }
     }
@@ -67,7 +60,6 @@ mod tests {
         test.duration = Some(2.0);
         session.insert(&test);
 
-        test.name = "def".into();
         test.name = "def".try_into().unwrap();
         test.outcome = Outcome::Skip;
         test.duration = Some(0.0);
@@ -102,7 +94,6 @@ mod tests {
         let mut session = writer.start_session(0, CommitHash::default(), &[]);
 
         session.insert(&test);
-        test.testsuite = "some testsuite".into();
         test.testsuite = "some testsuite".try_into().unwrap();
         session.insert(&test);
 
