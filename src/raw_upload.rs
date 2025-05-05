@@ -73,12 +73,17 @@ pub fn parse_raw_upload(raw_upload_bytes: &[u8]) -> anyhow::Result<(Vec<ParsingI
         let mut reader = Reader::from_reader(decompressed_file_bytes.as_slice());
         reader.config_mut().trim_text(true);
         let reader_result = use_reader(&mut reader, network.as_ref()).with_context(|| {
-            let pos = reader.buffer_position();
-            let (line, col) = get_position_info(&decompressed_file_bytes, pos.try_into().unwrap());
-            format!(
-                "Error parsing JUnit XML in {} at {}:{}",
-                file.filename, line, col
-            )
+            let pos_conversion = reader.buffer_position().try_into();
+            match pos_conversion {
+                Ok(pos) => {
+                    let (line, col) = get_position_info(&decompressed_file_bytes, pos);
+                    format!(
+                        "Error parsing JUnit XML in {} at {}:{}",
+                        file.filename, line, col
+                    )
+                }
+                Err(_) => format!("Error parsing JUnit XML in {}", file.filename),
+            }
         })?;
 
         results.push(reader_result);
