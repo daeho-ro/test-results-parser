@@ -83,9 +83,7 @@ fn populate(
         failure_message: None,
         filename: rel_attrs.file,
         build_url: None,
-        computed_name: ""
-            .try_into()
-            .context("Error converting computed name to ValidatedString")?,
+        computed_name: ValidatedString::default(),
     };
 
     let framework = framework.or_else(|| t.framework());

@@ -6,7 +6,7 @@ use rand::rngs::SmallRng;
 use rand::seq::SliceRandom as _;
 use rand::{Rng, SeedableRng};
 use test_results_parser::binary::*;
-use test_results_parser::{Outcome, Testrun};
+use test_results_parser::{Outcome, Testrun, ValidatedString};
 
 criterion_group!(benches, binary);
 criterion_main!(benches);
@@ -176,14 +176,14 @@ fn create_random_testcases(
 
                     Testrun {
                         name: name.try_into().unwrap(),
-                        classname: "".try_into().unwrap(),
+                        classname: ValidatedString::default(),
                         duration: Some(1.0),
                         outcome: Outcome::Pass,
-                        testsuite: "".try_into().unwrap(),
+                        testsuite: ValidatedString::default(),
                         failure_message: None,
                         filename: None,
                         build_url: None,
-                        computed_name: "".try_into().unwrap(),
+                        computed_name: ValidatedString::default(),
                     }
                 })
                 .collect();

@@ -18,21 +18,24 @@ mod tests {
     use raw::CommitHash;
     use timestamps::DAY;
 
-    use crate::testrun::{Outcome, Testrun};
+    use crate::{
+        testrun::{Outcome, Testrun},
+        validated_string::ValidatedString,
+    };
 
     use super::*;
 
     fn test() -> Testrun {
         Testrun {
             name: "abc".try_into().unwrap(),
-            classname: "".try_into().unwrap(),
+            classname: ValidatedString::default(),
             duration: Some(1.0),
             outcome: Outcome::Pass,
-            testsuite: "".try_into().unwrap(),
+            testsuite: ValidatedString::default(),
             failure_message: None,
             filename: None,
             build_url: None,
-            computed_name: "".try_into().unwrap(),
+            computed_name: ValidatedString::default(),
         }
     }
 
