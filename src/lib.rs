@@ -7,9 +7,10 @@ mod failure_message;
 mod junit;
 mod raw_upload;
 mod testrun;
+mod validated_string;
 
 pub use testrun::{Outcome, Testrun};
-
+pub use validated_string::ValidatedString;
 pyo3::create_exception!(test_results_parser, ComputeNameError, PyException);
 
 /// A Python module implemented in Rust.
