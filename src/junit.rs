@@ -47,7 +47,7 @@ fn parse_testcase_attrs(attributes: Attributes) -> Result<AttrsOrWarning> {
                 classname = match ValidatedString::from_string(unvalidated_classname) {
                     Ok(name) => Some(name),
                     Err(_) => {
-                        return Ok(AttrsOrWarning::Warning("Error validating classname".into()));
+                        return Ok(AttrsOrWarning::Warning("classname".into()));
                     }
                 };
             }
@@ -56,7 +56,7 @@ fn parse_testcase_attrs(attributes: Attributes) -> Result<AttrsOrWarning> {
                 name = match ValidatedString::from_string(unvalidated_name) {
                     Ok(name) => Some(name),
                     Err(_) => {
-                        return Ok(AttrsOrWarning::Warning("Error validating name".into()));
+                        return Ok(AttrsOrWarning::Warning("name".into()));
                     }
                 };
             }
@@ -65,7 +65,7 @@ fn parse_testcase_attrs(attributes: Attributes) -> Result<AttrsOrWarning> {
                 file = match ValidatedString::from_string(unvalidated_file) {
                     Ok(name) => Some(name),
                     Err(_) => {
-                        return Ok(AttrsOrWarning::Warning("Error validating file".into()));
+                        return Ok(AttrsOrWarning::Warning("file".into()));
                     }
                 };
             }
@@ -208,7 +208,10 @@ pub fn use_reader(
                             framework = parsed_framework;
                         }
                         AttrsOrWarning::Warning(warning) => {
-                            warnings.push(WarningInfo::new(warning, reader.buffer_position()));
+                            warnings.push(WarningInfo::new(
+                                format!("Error validating {}", warning),
+                                reader.buffer_position() - e.len() as u64,
+                            ));
                             saved_testrun = Some(TestrunOrSkipped::Skipped);
                         }
                     }

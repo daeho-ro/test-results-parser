@@ -72,7 +72,7 @@ fn format_warnings(input: &[u8], warnings: Vec<WarningInfo>, filename: &str) -> 
         }
         offset += warning.location;
         result.push(format!(
-            "{} ending at {}:{} in {}",
+            "{} at {}:{} in {}",
             warning.message, line, col, filename
         ));
     }
