@@ -10,12 +10,36 @@ use crate::compute_name::{compute_name, unescape_str};
 use crate::testrun::{check_testsuites_name, Framework, Outcome, Testrun};
 use crate::validated_string::ValidatedString;
 use crate::warning::WarningInfo;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+enum ParseAttrsError {
+    #[error("Limit of string is 1000 chars, for {0}, we got {1}")]
+    AttrTooLong(&'static str, usize),
+    #[error("Error converting attribute {0} to UTF-8 string")]
+    ConversionError(&'static str),
+    #[error("Missing name attribute in testcase")]
+    NameMissing,
+    #[error("Error parsing attribute")]
+    ParseError,
+}
 
 fn convert_attribute(attribute: Attribute) -> Result<String> {
     let bytes = attribute.value.into_owned();
-    let value = String::from_utf8(bytes).context("Error converting attribute to string")?;
-    Ok(value)
+    Ok(String::from_utf8(bytes)?)
 }
+
+fn extract_validated_string(
+    attribute: Attribute,
+    field_name: &'static str,
+) -> Result<ValidatedString, ParseAttrsError> {
+    let unvalidated_string =
+        convert_attribute(attribute).map_err(|_| ParseAttrsError::ConversionError(field_name))?;
+    let string_len = unvalidated_string.len();
+    ValidatedString::from_string(unvalidated_string)
+        .map_err(|_| ParseAttrsError::AttrTooLong(field_name, string_len))
+}
+
 struct TestcaseAttrs {
     name: ValidatedString,
     time: Option<String>,
@@ -23,64 +47,44 @@ struct TestcaseAttrs {
     file: Option<ValidatedString>,
 }
 
-enum AttrsOrWarning {
-    Attributes(TestcaseAttrs),
-    Warning(String),
-}
-
 // originally from https://gist.github.com/scott-codecov/311c174ecc7de87f7d7c50371c6ef927#file-cobertura-rs-L18-L31
-fn parse_testcase_attrs(attributes: Attributes) -> Result<AttrsOrWarning> {
+fn parse_testcase_attrs(attributes: Attributes) -> Result<TestcaseAttrs, ParseAttrsError> {
     let mut name: Option<ValidatedString> = None;
     let mut time: Option<String> = None;
     let mut classname: Option<ValidatedString> = None;
     let mut file: Option<ValidatedString> = None;
 
     for attribute in attributes {
-        let attribute = attribute.context("Error parsing attribute")?;
+        let attribute = attribute.map_err(|_| ParseAttrsError::ParseError)?;
 
         match attribute.key.into_inner() {
             b"time" => {
-                time = Some(convert_attribute(attribute)?);
+                time = Some(
+                    convert_attribute(attribute)
+                        .map_err(|_| ParseAttrsError::ConversionError("time"))?,
+                );
             }
             b"classname" => {
-                let unvalidated_classname = convert_attribute(attribute)?;
-                classname = match ValidatedString::from_string(unvalidated_classname) {
-                    Ok(name) => Some(name),
-                    Err(_) => {
-                        return Ok(AttrsOrWarning::Warning("classname".into()));
-                    }
-                };
+                classname = Some(extract_validated_string(attribute, "classname")?);
             }
             b"name" => {
-                let unvalidated_name = convert_attribute(attribute)?;
-                name = match ValidatedString::from_string(unvalidated_name) {
-                    Ok(name) => Some(name),
-                    Err(_) => {
-                        return Ok(AttrsOrWarning::Warning("name".into()));
-                    }
-                };
+                name = Some(extract_validated_string(attribute, "name")?);
             }
             b"file" => {
-                let unvalidated_file = convert_attribute(attribute)?;
-                file = match ValidatedString::from_string(unvalidated_file) {
-                    Ok(name) => Some(name),
-                    Err(_) => {
-                        return Ok(AttrsOrWarning::Warning("file".into()));
-                    }
-                };
+                file = Some(extract_validated_string(attribute, "file")?);
             }
             _ => {}
         }
     }
 
     match name {
-        Some(name) => Ok(AttrsOrWarning::Attributes(TestcaseAttrs {
+        Some(name) => Ok(TestcaseAttrs {
             name,
             time,
             classname,
             file,
-        })),
-        None => anyhow::bail!("No name found"),
+        }),
+        None => Err(ParseAttrsError::NameMissing),
     }
 }
 
@@ -190,9 +194,9 @@ pub fn use_reader(
             }
             Event::Start(e) => match e.name().as_ref() {
                 b"testcase" => {
-                    let attrs = parse_testcase_attrs(e.attributes())?;
+                    let attrs = parse_testcase_attrs(e.attributes());
                     match attrs {
-                        AttrsOrWarning::Attributes(attrs) => {
+                        Ok(attrs) => {
                             let (testrun, parsed_framework) = populate(
                                 attrs,
                                 testsuite_names
@@ -207,13 +211,21 @@ pub fn use_reader(
                             saved_testrun = Some(TestrunOrSkipped::Testrun(testrun));
                             framework = parsed_framework;
                         }
-                        AttrsOrWarning::Warning(warning) => {
-                            warnings.push(WarningInfo::new(
-                                format!("Error validating {}", warning),
-                                reader.buffer_position() - e.len() as u64,
-                            ));
-                            saved_testrun = Some(TestrunOrSkipped::Skipped);
-                        }
+                        Err(error) => match error {
+                            ParseAttrsError::AttrTooLong(_, _) => {
+                                warnings.push(WarningInfo::new(
+                                    format!("Warning while parsing testcase attributes: {}", error),
+                                    reader.buffer_position() - e.len() as u64,
+                                ));
+                                saved_testrun = Some(TestrunOrSkipped::Skipped);
+                            }
+                            _ => {
+                                Err(anyhow::anyhow!(
+                                    "Error parsing testcase attributes: {}",
+                                    error
+                                ))?;
+                            }
+                        },
                     }
                 }
                 b"skipped" => {
@@ -296,9 +308,9 @@ pub fn use_reader(
             },
             Event::Empty(e) => match e.name().as_ref() {
                 b"testcase" => {
-                    let rel_attrs = parse_testcase_attrs(e.attributes())?;
-                    match rel_attrs {
-                        AttrsOrWarning::Attributes(attrs) => {
+                    let attrs = parse_testcase_attrs(e.attributes());
+                    match attrs {
+                        Ok(attrs) => {
                             let (testrun, parsed_framework) = populate(
                                 attrs,
                                 testsuite_names
@@ -313,9 +325,18 @@ pub fn use_reader(
                             testruns.push(testrun);
                             framework = parsed_framework;
                         }
-                        AttrsOrWarning::Warning(warning) => {
-                            warnings.push(WarningInfo::new(warning, reader.buffer_position()));
-                        }
+                        Err(error) => match error {
+                            ParseAttrsError::AttrTooLong(_, _) => {
+                                warnings.push(WarningInfo::new(
+                                    format!("Warning while parsing testcase attributes: {}", error),
+                                    reader.buffer_position() - e.len() as u64,
+                                ));
+                            }
+                            _ => Err(anyhow::anyhow!(
+                                "Error parsing testcase attributes: {}",
+                                error
+                            ))?,
+                        },
                     }
                 }
                 b"failure" => {
