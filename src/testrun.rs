@@ -2,6 +2,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyString;
 use pyo3::{PyAny, PyResult};
 use serde::Serialize;
+use serde_json::Value;
 
 use crate::validated_string::ValidatedString;
 
@@ -112,6 +113,43 @@ impl<'py> FromPyObject<'py> for Framework {
     }
 }
 
+/// Wrapper for serde_json::Value to enable PyO3 conversion
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct PropertiesValue(pub Option<Value>);
+
+impl<'py> IntoPyObject<'py> for PropertiesValue {
+    type Target = PyAny;
+    type Output = Bound<'py, Self::Target>;
+    type Error = pyo3::PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        match self.0 {
+            Some(value) => {
+                let dumped_object = serde_json::to_string(&value).map_err(|e| {
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid JSON: {}", e))
+                })?;
+                let py_str = PyString::new(py, &dumped_object);
+                Ok(py_str.into_any())
+            }
+            None => Ok(py.None().into_bound(py)),
+        }
+    }
+}
+
+impl<'py> FromPyObject<'py> for PropertiesValue {
+    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
+        if ob.is_none() {
+            return Ok(PropertiesValue(None));
+        }
+
+        let s = ob.str()?.to_string();
+        let v: Value = serde_json::from_str(&s).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid JSON: {}", e))
+        })?;
+        Ok(PropertiesValue(Some(v)))
+    }
+}
+
 // i can't seem to get  pyo3(from_item_all) to work when IntoPyObject is also being derived
 #[derive(IntoPyObject, FromPyObject, Clone, Debug, Serialize, PartialEq)]
 pub struct Testrun {
@@ -133,6 +171,8 @@ pub struct Testrun {
     pub build_url: Option<String>,
     #[pyo3(item)]
     pub computed_name: ValidatedString,
+    #[pyo3(item)]
+    pub properties: PropertiesValue,
 }
 
 impl Testrun {
@@ -176,6 +216,11 @@ pub struct ParsingInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+
+    fn setup() {
+        pyo3::prepare_freethreaded_python();
+    }
 
     #[test]
     fn test_detect_framework_testsuites_name_no_match() {
@@ -201,6 +246,7 @@ mod tests {
             filename: None,
             build_url: None,
             computed_name: ValidatedString::default(),
+            properties: PropertiesValue(None),
         };
         assert_eq!(t.framework(), Some(Framework::Pytest))
     }
@@ -217,6 +263,7 @@ mod tests {
             filename: Some(".py".try_into().unwrap()),
             build_url: None,
             computed_name: ValidatedString::default(),
+            properties: PropertiesValue(None),
         };
         assert_eq!(t.framework(), Some(Framework::Pytest))
     }
@@ -233,6 +280,7 @@ mod tests {
             filename: None,
             build_url: None,
             computed_name: ValidatedString::default(),
+            properties: PropertiesValue(None),
         };
         assert_eq!(t.framework(), Some(Framework::Pytest))
     }
@@ -249,6 +297,7 @@ mod tests {
             filename: None,
             build_url: None,
             computed_name: ValidatedString::default(),
+            properties: PropertiesValue(None),
         };
         assert_eq!(t.framework(), Some(Framework::Pytest))
     }
@@ -265,6 +314,7 @@ mod tests {
             filename: None,
             build_url: None,
             computed_name: ValidatedString::default(),
+            properties: PropertiesValue(None),
         };
         assert_eq!(t.framework(), Some(Framework::Pytest))
     }
@@ -281,7 +331,214 @@ mod tests {
             filename: None,
             build_url: Some("https://example.com/build_url".to_string()),
             computed_name: ValidatedString::default(),
+            properties: PropertiesValue(None),
         };
         assert_eq!(t.framework(), Some(Framework::Pytest))
+    }
+
+    #[test]
+    fn test_properties_into_none_conversion() {
+        setup();
+        let property = PropertiesValue(None);
+        Python::with_gil(|py| {
+            let property_py = property
+                .into_pyobject(py)
+                .expect("Failed to convert PropertiesValue to Python object");
+            assert!(property_py.is_none());
+        })
+    }
+
+    #[test]
+    fn test_properties_into_string_conversion() {
+        setup();
+        let property = PropertiesValue(Some(json!("test_string")));
+        Python::with_gil(|py| {
+            let property_py = property
+                .into_pyobject(py)
+                .expect("Failed to convert PropertiesValue to Python object");
+            let round_trip_value = PropertiesValue::extract_bound(&property_py)
+                .expect("Failed to extract PropertiesValue from Python object");
+            assert_eq!(
+                round_trip_value,
+                PropertiesValue(Some(json!("test_string")))
+            );
+        })
+    }
+
+    #[test]
+    fn test_properties_into_integer_conversion() {
+        setup();
+        let property = PropertiesValue(Some(json!(42)));
+        Python::with_gil(|py| {
+            let property_py = property
+                .into_pyobject(py)
+                .expect("Failed to convert PropertiesValue to Python object");
+            let round_trip_value = PropertiesValue::extract_bound(&property_py)
+                .expect("Failed to extract PropertiesValue from Python object");
+            assert_eq!(round_trip_value, PropertiesValue(Some(json!(42))));
+        })
+    }
+
+    #[test]
+    fn test_properties_into_boolean_conversion() {
+        setup();
+        let property = PropertiesValue(Some(json!(true)));
+        Python::with_gil(|py| {
+            let property_py = property
+                .into_pyobject(py)
+                .expect("Failed to convert PropertiesValue to Python object");
+            let round_trip_value = PropertiesValue::extract_bound(&property_py)
+                .expect("Failed to extract PropertiesValue from Python object");
+            assert_eq!(round_trip_value, PropertiesValue(Some(json!(true))));
+        })
+    }
+
+    #[test]
+    fn test_properties_into_empty_list_conversion() {
+        setup();
+        let property = PropertiesValue(Some(json!([])));
+        Python::with_gil(|py| {
+            let property_py = property
+                .into_pyobject(py)
+                .expect("Failed to convert PropertiesValue to Python object");
+            let round_trip_value = PropertiesValue::extract_bound(&property_py)
+                .expect("Failed to extract PropertiesValue from Python object");
+            assert_eq!(round_trip_value, PropertiesValue(Some(json!([]))));
+        })
+    }
+
+    #[test]
+    fn test_properties_into_list_with_values_conversion() {
+        setup();
+        let property = PropertiesValue(Some(json!(["item1", 123, 4.25, true])));
+        Python::with_gil(|py| {
+            let property_py = property
+                .into_pyobject(py)
+                .expect("Failed to convert PropertiesValue to Python object");
+            let round_trip_value = PropertiesValue::extract_bound(&property_py)
+                .expect("Failed to extract PropertiesValue from Python object");
+            // Note: booleans get converted to integers in the round trip
+            assert_eq!(
+                round_trip_value,
+                PropertiesValue(Some(json!(["item1", 123, 4.25, true])))
+            );
+        })
+    }
+
+    #[test]
+    fn test_properties_into_empty_dict_conversion() {
+        setup();
+        let property = PropertiesValue(Some(json!({})));
+        Python::with_gil(|py| {
+            let property_py = property
+                .into_pyobject(py)
+                .expect("Failed to convert PropertiesValue to Python object");
+            let round_trip_value = PropertiesValue::extract_bound(&property_py)
+                .expect("Failed to extract PropertiesValue from Python object");
+            assert_eq!(round_trip_value, PropertiesValue(Some(json!({}))));
+        })
+    }
+
+    #[test]
+    fn test_properties_into_dict_with_values_conversion() {
+        setup();
+        let property = PropertiesValue(Some(json!({
+            "string_key": "string_value",
+            "int_key": 456,
+            "bool_key": false
+        })));
+        Python::with_gil(|py| {
+            let property_py = property
+                .into_pyobject(py)
+                .expect("Failed to convert PropertiesValue to Python object");
+            let round_trip_value = PropertiesValue::extract_bound(&property_py)
+                .expect("Failed to extract PropertiesValue from Python object");
+            // Note: booleans get converted to integers in the round trip
+            assert_eq!(
+                round_trip_value,
+                PropertiesValue(Some(json!({
+                    "string_key": "string_value",
+                    "int_key": 456,
+                    "bool_key": false
+                })))
+            );
+        })
+    }
+
+    #[test]
+    fn test_properties_into_nested_dict_conversion() {
+        setup();
+        let property = PropertiesValue(Some(json!({
+            "outer_key": "outer_value",
+            "nested": {
+                "inner_key": "inner_value"
+            }
+        })));
+        Python::with_gil(|py| {
+            let property_py = property
+                .into_pyobject(py)
+                .expect("Failed to convert PropertiesValue to Python object");
+            let round_trip_value = PropertiesValue::extract_bound(&property_py)
+                .expect("Failed to extract PropertiesValue from Python object");
+            assert_eq!(
+                round_trip_value,
+                PropertiesValue(Some(json!({
+                    "outer_key": "outer_value",
+                    "nested": {
+                        "inner_key": "inner_value"
+                    }
+                })))
+            );
+        })
+    }
+
+    #[test]
+    fn test_properties_into_list_with_dict_conversion() {
+        setup();
+        let property = PropertiesValue(Some(json!([
+            "list_item",
+            {
+                "key": "value"
+            }
+        ])));
+        Python::with_gil(|py| {
+            let property_py = property
+                .into_pyobject(py)
+                .expect("Failed to convert PropertiesValue to Python object");
+            let round_trip_value = PropertiesValue::extract_bound(&property_py)
+                .expect("Failed to extract PropertiesValue from Python object");
+            assert_eq!(
+                round_trip_value,
+                PropertiesValue(Some(json!([
+                    "list_item",
+                    {
+                        "key": "value"
+                    }
+                ])))
+            );
+        })
+    }
+
+    #[test]
+    fn test_properties_into_dict_with_list_conversion() {
+        setup();
+        let property = PropertiesValue(Some(json!({
+            "numbers": [1, 2, 3],
+            "name": "test"
+        })));
+        Python::with_gil(|py| {
+            let property_py = property
+                .into_pyobject(py)
+                .expect("Failed to convert PropertiesValue to Python object");
+            let round_trip_value = PropertiesValue::extract_bound(&property_py)
+                .expect("Failed to extract PropertiesValue from Python object");
+            assert_eq!(
+                round_trip_value,
+                PropertiesValue(Some(json!({
+                    "numbers": [1, 2, 3],
+                    "name": "test"
+                })))
+            );
+        })
     }
 }
